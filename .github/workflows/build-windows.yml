@@ -1,0 +1,44 @@
+name: Build Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  package:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install locked dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Run tests
+        run: python -m pytest
+
+      - name: Build onedir executable and zip
+        shell: pwsh
+        run: |
+          python -m PyInstaller packaging\evapcond.spec --noconfirm --distpath dist --workpath build\pyinstaller
+          if (-not (Test-Path dist\EvapCond\EvapCond.exe)) { throw "EvapCond.exe was not produced" }
+          Copy-Item packaging\使用说明.txt dist\EvapCond\使用说明.txt
+          New-Item -ItemType Directory -Force dist\EvapCond\examples | Out-Null
+          Copy-Item examples\design_example.json dist\EvapCond\examples\
+          Copy-Item examples\rating_example.json dist\EvapCond\examples\
+          $version = python -c "import evapcond; print(evapcond.__version__)"
+          Compress-Archive -Path dist\EvapCond -DestinationPath "dist\EvapCond_v${version}_win64.zip" -Force
+
+      - name: Upload zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: EvapCond-win64
+          path: dist/EvapCond_v*_win64.zip
+          if-no-files-found: error
