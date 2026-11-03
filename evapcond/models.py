@@ -122,3 +122,23 @@ def _positive(name, value):
 def _positive_int(name, value):
     if type(value) is not int or value < 1:
         raise InputError(f"{name} 必须是正整数")
+
+
+@dataclass(frozen=True)
+class CorrelationMeta:
+    """关联式的文献与适用范围。reported_deviation 没有数字时写明未给出。"""
+
+    name: str
+    citation: str
+    applicability: str
+    reported_deviation: str
+
+
+@dataclass(frozen=True)
+class CorrelationRecord:
+    """一次关联式调用。parameters 为 (参数名, 数值) 对。"""
+
+    name: str
+    citation: str
+    applicability: str
+    parameters: tuple

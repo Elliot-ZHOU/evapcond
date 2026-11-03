@@ -7,7 +7,8 @@
 - 步骤 0（关联式与默认参数确认表）：已完成。补充二、补充三、补充四的决定都在 docs/correlations.md。交接入口是 docs/HANDOFF.md。
 - 步骤 1（改动计划）：正文在 docs/PLAN.md。网格、\(\Gamma_\mathrm{ref}\)、湿修正、Zukauskas–Ulinskas 系数表、\(C_2\) 拟合和外扩规则已由用户定稿。依赖版本、Friedel 展开式、均相加速压降仍是计划中的拟用式，已按该文件写入依赖清单。
 - 步骤 3.1（物性）：已完成。
-- 步骤 3.2（几何）：已完成。测试见下方。下一步是步骤 3.3 空气侧。
+- 步骤 3.2（几何）：已完成。
+- 步骤 3.3（空气侧）：已完成。测试见下方。下一步是步骤 3.4 制冷剂侧。
 
 ## b. 已完成步骤
 
@@ -25,6 +26,8 @@
 - 测试（3.1 完成时）：在 `.venv` 中运行 `python -m pytest`，13 项通过，约 2.8 s。解释器 Python 3.12.16，pytest 8.3.4，CoolProp 6.6.0。
 - 步骤 3.2：新增 `evapcond/models.py`（`TubeGeometry`、`PlateGeometry`）、`evapcond/geometry/tube.py`、`plate.py`、`candidates.py` 和 `tests/test_geometry.py`。\(d_i=d_o-2\delta\)，迎风面积 \(N_t S_T L\)，管外面积 \(N_t N_r \pi d_o L\)。默认几何候选是补充三粗网格的几何部分，252 个，\(N_t=1\)。贴边外扩按补充四：管排 28 新增 29 和 30，管长 2 m 新增 1 m，管长 6 m 新增 7 m 和 8 m。板式与低翅片可以构造，求解入口抛出规定的 `UnconfirmedCorrelationError`。
 - 测试（3.2 完成时）：`python -m pytest` 20 项通过，约 2.9 s。此前 13 项物性测试仍通过。
+- 步骤 3.3：新增 `evapcond/correlations/registry.py`、`film_air.py`、`evapcond/airside.py`、`tests/test_airside.py`，并在 `models.py` 增加 `CorrelationMeta` 与 `CorrelationRecord`。\(h_c\) 与 \(h_w\) 都是 \(2102.9(\Gamma_m/d_o)^{1/3}\)，分开调用。管径只接受 12.7、19.05、40 mm，因此默认候选里的 25 mm 和 32 mm 在调用该关联式时会 `OutOfRangeError`。\(\Gamma_m=\dot m_w d_o/(2A_f)=\Gamma d_o/S_T\)。\(\mathrm{Le}_f\) 默认 Bosnjaković，不再另取 \(2/3\) 次方；\(w_s=w_a\) 时为 \(0.865^{2/3}\approx 0.908\)。显热、蒸发、潜热分开。空气出口温度由 \((i_a,w_a,p)\) 反算，焓增使用 \(i_g\) 而不是 \(h_{fg}\)。
+- 测试（3.3 完成时）：`python -m pytest` 28 项通过，约 3.1 s。
 
 ## c. 用户已确认的决定
 
@@ -51,10 +54,11 @@
 1. 干管束欧拉数系数已按 png 核对，压降函数留到空气侧/辅机步骤再编码，不在 3.1。
 2. 补充二的 Shah 公式按写出的方程实现。它与 1979 年公开形式一致，不含 2009 年粘度修正。用户若要改回 2009 年分区公式，须另说。
 3. Friedel 展开式与均相加速压降按 docs/PLAN.md 实现，补充四未改。
-4. 25 °C 时，HAPropsSI 由含湿量差分得到的水蒸气分焓比 HEOS 饱和蒸气焓低约 97 J/kg。3.1 仍分别返回两个库的原值。步骤 3.5 做能量守恒时再核对这两个参考态能否直接相加。
+4. 25 °C 时，HAPropsSI 由含湿量差分得到的水蒸气分焓比 HEOS 饱和蒸气焓低约 97 J/kg。3.1 仍分别返回两个库的原值。空气侧焓增已按 \(i_g\) 写入。步骤 3.5 做能量守恒时再核对这两个参考态能否直接相加。
+5. Mizushina 管径按补充二只接受 12.7、19.05、40 mm。规格默认候选中的 25 mm 和 32 mm 会在该关联式处越界。这不是新的选择；若要改成区间而不是这三个离散管径，须另说。
 
 ## e. 下一步的具体动作
 
-实现步骤 3.3：`evapcond/correlations/film_air.py`、`evapcond/airside.py` 和 `tests/test_airside.py`。
+实现步骤 3.4：`evapcond/correlations/condensation.py`、`single_phase.py`、`pressure_drop.py`、`evapcond/refside.py` 和 `tests/test_refside.py`。
 
-管外 \(h_c\) 与水膜 \(h_w\) 都用 \(h=2102.9(\Gamma_m/d_o)^{1/3}\)，范围 \(0.195<\Gamma_m/d_o<5.556\)。\(\Gamma_m=\dot m_w d_o/(2A_f)\)。\(h_m=h_c/(c_{p,a}\mathrm{Le}_f)\)，\(\mathrm{Le}_f\) 用 Bosnjaković 式，\(w_s\to w_a\) 时取约 0.908。显热、蒸发、潜热分开，空气温度由 \((i_a,w_a,p)\) 反算。不改几何和物性接口。
+管内冷凝用补充二的 Shah 公式，\(\mathrm{Re}_{GT}\le 35000\) 时计算并写警告。单相用 Gnielinski 公开转写，\(\mathrm{Re}<2300\) 抛 `OutOfRangeError`。两相压降用 Friedel 乘子加 Blasius，展开式和均相加速压降按 docs/PLAN.md。不改空气侧公式。
