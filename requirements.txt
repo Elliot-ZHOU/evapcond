@@ -1,0 +1,6 @@
+CoolProp==6.6.0
+PySide6==6.6.2
+numpy==1.26.4
+scipy==1.11.4
+pytest==8.3.4
+pyinstaller==6.3.0

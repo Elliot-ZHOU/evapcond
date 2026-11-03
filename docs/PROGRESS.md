@@ -5,8 +5,8 @@
 ## a. 当前步骤及状态
 
 - 步骤 0（关联式与默认参数确认表）：已完成。补充二、补充三、补充四的决定都在 docs/correlations.md。交接入口是 docs/HANDOFF.md。
-- 步骤 1（改动计划）：正文在 docs/PLAN.md。网格、\(\Gamma_\mathrm{ref}\)、湿修正、Zukauskas–Ulinskas 系数表、\(C_2\) 拟合和外扩规则已由用户定稿。依赖版本、Friedel 展开式、均相加速压降仍是计划中的拟用式。
-- 实现步骤 3.1 至文档：未开始。下一步由新 agent 执行，见 docs/HANDOFF.md。
+- 步骤 1（改动计划）：正文在 docs/PLAN.md。网格、\(\Gamma_\mathrm{ref}\)、湿修正、Zukauskas–Ulinskas 系数表、\(C_2\) 拟合和外扩规则已由用户定稿。依赖版本、Friedel 展开式、均相加速压降仍是计划中的拟用式，已按该文件写入依赖清单。
+- 步骤 3.1（物性）：已完成。测试见下方。下一步是步骤 3.2 几何。
 
 ## b. 已完成步骤
 
@@ -16,7 +16,12 @@
 - 2026-11-03 读取补充二.docx 的正文与 11 张说明图，把其中的决定写入 docs/correlations.md。
 - 2026-11-03 读取补充三.docx。\(\Gamma_\mathrm{ref}\)、湿修正和粗网格策略已写入 docs/correlations.md。
 - 2026-11-03 读取补充四.docx。放弃 \(C_1\mathrm{Re}^{-m}\) 形式，改用 Zukauskas–Ulinskas 逆幂级数、补充四的 \(C_2\) 拟合，以及贴边外扩规则。原图与 docx 副本在 docs/sources/。交接说明在 docs/HANDOFF.md。
-- 计算代码与测试：未开始。测试结果：无。
+- 2026-11-03 对照 `docs/sources/zukauskas_euler_table.png` 核对三处争议系数，与 docs/correlations.md 补充四表格一致，表格不改：
+  - \(a=1.25\)，\(10^3\sim 2\times 10^6\) 的 \(u=-0.599\times 10^{13}\)
+  - \(a=2.0\)，\(7\sim 10^2\) 的 \(t=-0.582\times 10^{3}\)
+  - \(a=2.5\)，\(10^2\sim 5\times 10^3\) 的 \(u=0.862\times 10^{8}\)
+- 步骤 3.1：新增 `evapcond/__init__.py`（`__version__ = "1.0.0"`）、`evapcond/errors.py`、`evapcond/properties/backend.py`、`coolprop_backend.py`、`refrigerant.py`、`humid_air.py`、`water.py`、`tests/test_properties.py`，以及 `requirements.txt`、`pyproject.toml`、`.gitignore`。CoolProp 只在 `coolprop_backend.py` 导入。制冷剂与水用 HEOS；R404A、R507A 用伪纯质名 `HEOS::R404A`、`HEOS::R507A`。湿空气用 HAPropsSI。开发环境是仓库内 `.venv` 的 Python 3.12.16，因为本机 3.13/3.14 装不上 CoolProp 6.6.0。`.venv` 不入库。
+- 测试：在 `.venv` 中运行 `python -m pytest`，13 项通过，约 2.8 s。解释器 Python 3.12.16，pytest 8.3.4，CoolProp 6.6.0。
 
 ## c. 用户已确认的决定
 
@@ -40,14 +45,13 @@
 
 ## d. 未解决的问题
 
-1. 欧拉数表有三格与一份转载论文不一致，已列在 docs/correlations.md。新 agent 先读 `docs/sources/zukauskas_euler_table.png` 再写死数字。这不是要用户重新选择关联式。
+1. 干管束欧拉数系数已按 png 核对，压降函数留到空气侧/辅机步骤再编码，不在 3.1。
 2. 补充二的 Shah 公式按写出的方程实现。它与 1979 年公开形式一致，不含 2009 年粘度修正。用户若要改回 2009 年分区公式，须另说。
-3. Friedel 展开式、均相加速压降、六个依赖的精确版本写在 docs/PLAN.md，补充四未改。新 agent 按该文件实现。
+3. Friedel 展开式与均相加速压降按 docs/PLAN.md 实现，补充四未改。
+4. 25 °C 时，HAPropsSI 由含湿量差分得到的水蒸气分焓比 HEOS 饱和蒸气焓低约 97 J/kg。3.1 仍分别返回两个库的原值。步骤 3.5 做能量守恒时再核对这两个参考态能否直接相加。
 
 ## e. 下一步的具体动作
 
-用户新开一个 agent，让它从 docs/HANDOFF.md 开始。本对话不再写 `evapcond/`。
+实现步骤 3.2：`evapcond/geometry/tube.py`、`plate.py`、`candidates.py` 和 `tests/test_geometry.py`。
 
-新 agent 的第一个动作：阅读 `docs/sources/zukauskas_euler_table.png`，核对补充四表格中标出的三处系数，把核对结果写入本文件；然后实现步骤 3.1 的 `evapcond/properties/backend.py`、`coolprop_backend.py`、`refrigerant.py`、`humid_air.py`、`water.py` 和 `tests/test_properties.py`。
-
-批准后的第一个实现动作是步骤 3.1：新增 `evapcond/properties/backend.py`、`coolprop_backend.py`、`refrigerant.py`、`humid_air.py`、`water.py`，以及 `tests/test_properties.py`。求解器与界面不得直接导入 CoolProp。
+几何关系：\(d_i=d_o-2\delta\)，迎风面积 \(N_t S_T L\)，管外表面积。板式与低翅片字段可以构造，求解入口拒绝并抛出 `UnconfirmedCorrelationError`。不改 3.1 的物性接口，不改已确认的关联式。
