@@ -4,9 +4,9 @@
 
 ## a. 当前步骤及状态
 
-- 步骤 0（关联式与默认参数确认表）：已完成。确认结论来自用户提供的 `/Users/zhouhui/Desktop/补充二.docx`，已写入 docs/correlations.md 的「用户确认」一节。
-- 步骤 1（改动计划）：进行中。docs/PLAN.md 已有正文。补充三批准了 \(\Gamma_\mathrm{ref}\)、湿修正和 2268 点粗网格。Zukauskas 压降的 \(C_1\)、\(m\)、\(C_2\) 数值以及边界外扩步数仍未给出，未开始编码。
-- 实现步骤 3.1 至文档：未开始。
+- 步骤 0（关联式与默认参数确认表）：已完成。补充二、补充三、补充四的决定都在 docs/correlations.md。交接入口是 docs/HANDOFF.md。
+- 步骤 1（改动计划）：正文在 docs/PLAN.md。网格、\(\Gamma_\mathrm{ref}\)、湿修正、Zukauskas–Ulinskas 系数表、\(C_2\) 拟合和外扩规则已由用户定稿。依赖版本、Friedel 展开式、均相加速压降仍是计划中的拟用式。
+- 实现步骤 3.1 至文档：未开始。下一步由新 agent 执行，见 docs/HANDOFF.md。
 
 ## b. 已完成步骤
 
@@ -14,7 +14,8 @@
 - 步骤 0 对话中的确认表原文保存在 docs/correlations.md 前半部分。
 - 阻塞项阅读稿：项目根目录「蒸发式冷凝器_步骤0_阻塞项.pdf」（5 页）。该 PDF 未纳入 git。
 - 2026-11-03 读取补充二.docx 的正文与 11 张说明图，把其中的决定写入 docs/correlations.md。
-- 2026-11-03 读取补充三.docx。\(\Gamma_\mathrm{ref}\)、湿修正和粗网格策略已写入 docs/correlations.md。干管束压降只记录了 Zukauskas 的函数形式，没有写入系数表。
+- 2026-11-03 读取补充三.docx。\(\Gamma_\mathrm{ref}\)、湿修正和粗网格策略已写入 docs/correlations.md。
+- 2026-11-03 读取补充四.docx。放弃 \(C_1\mathrm{Re}^{-m}\) 形式，改用 Zukauskas–Ulinskas 逆幂级数、补充四的 \(C_2\) 拟合，以及贴边外扩规则。原图与 docx 副本在 docs/sources/。交接说明在 docs/HANDOFF.md。
 - 计算代码与测试：未开始。测试结果：无。
 
 ## c. 用户已确认的决定
@@ -34,20 +35,19 @@
 - 锁定的依赖版本：尚未批准。拟用版本写在 docs/PLAN.md。
 - 2026-11-03 补充三：\(\Gamma_\mathrm{ref}=2.8755\,\mathrm{kg/(m^2\cdot s)}\)，湿修正为 \(\Delta p_\mathrm{wet}=\Delta p_\mathrm{dry}\left(1+0.5(\Gamma_m/d_o)/\Gamma_\mathrm{ref}\right)\)，结果 JSON 用 `estimated_wet_correction` 标记。
 - 2026-11-03 补充三：默认设计搜索改为 2268 点粗网格，再在最优点附近细化，细化点不超过 200。报告必须印出补充三规定的那句「非全局穷举……exhaustive 模式」。最优解落在管排 4 或 28、或管长 2 m 或 6 m 时，先外扩再细化。外扩步数未给出。
-- 2026-11-03 补充三：干管束压降采用 Zukauskas (1972) 错列管束的欧拉数形式。\(C_1\)、\(m\)、\(C_2\) 的数字不在该文件中。
-- 改动计划是否批准：部分批准。网格、\(\Gamma_\mathrm{ref}\) 和湿修正的结构已批准。依赖版本、Friedel 展开式、均相加速压降，以及 Zukauskas 系数表，尚未批准。
+- 2026-11-03 补充四：干管束压降改为 Zukauskas 与 Ulinskas 的逆幂级数，系数表见 docs/correlations.md。\(N_r<10\) 时 \(C_2=1-0.45\exp(-N_r/3)\)，否则为 1。非等边布置本期 \(k_1=1\)，并输出规定说明。贴边外扩：管排 \(\Delta N_r=4\) 且不超过 30；管长 \(\Delta L=2\,\mathrm{m}\)，下限 0.5 m，未另给上限时 10 m。
+- 改动计划是否批准：步骤 0 的技术决定已全部定稿。docs/PLAN.md 里的依赖版本、Friedel 展开式和均相加速压降，补充四没有改写，新 agent 按该文件实现。
 
 ## d. 未解决的问题
 
-1. Zukauskas 欧拉数的 \(C_1\)、\(m\)（随 \(S_T/d_o\)、\(S_L/d_o\)）和 \(N_r<10\) 时的 \(C_2\) 没有数字。Incropera 表 7.5 的常见内容是努塞尔数常数，不是压降系数，因此没有把该表抄进欧拉数公式。需要用户给出压降用的系数表，或指定可逐项核对的页码。
-2. 粗网格最优解贴边时，「向外扩展」的排数步长、管长步长，以及能否超出原规格的管排 4–30、管长 2–6 m，补充三没有写。
-3. 加速压降的空泡份额算法，补充二没有指定。计划中拟用均相密度，待批准。
-4. Friedel 的 \(E,F,H,\mathrm{Fr},\mathrm{We}\) 展开式待批准。
-5. 补充二把 Shah 公式标成 2009，写出的方程和 15–17% / 雷诺数 100–63000 与 2009 年论文摘要不一致，与 1979 年公开形式一致。实现按补充二的方程。若用户要改回 2009 年粘度修正，须另说。
-6. 依赖版本仍是计划中的拟锁定值，用户尚未逐项批准。
+1. 欧拉数表有三格与一份转载论文不一致，已列在 docs/correlations.md。新 agent 先读 `docs/sources/zukauskas_euler_table.png` 再写死数字。这不是要用户重新选择关联式。
+2. 补充二的 Shah 公式按写出的方程实现。它与 1979 年公开形式一致，不含 2009 年粘度修正。用户若要改回 2009 年分区公式，须另说。
+3. Friedel 展开式、均相加速压降、六个依赖的精确版本写在 docs/PLAN.md，补充四未改。新 agent 按该文件实现。
 
 ## e. 下一步的具体动作
 
-等待用户提供 Zukauskas 压降系数表，并写明贴边外扩的步长。在这两项写入本文件之前，不创建 `evapcond/`，不编写 `pressure_drop.py`、`auxiliary.py`、`design.py` 或 `solver.py`。
+用户新开一个 agent，让它从 docs/HANDOFF.md 开始。本对话不再写 `evapcond/`。
+
+新 agent 的第一个动作：阅读 `docs/sources/zukauskas_euler_table.png`，核对补充四表格中标出的三处系数，把核对结果写入本文件；然后实现步骤 3.1 的 `evapcond/properties/backend.py`、`coolprop_backend.py`、`refrigerant.py`、`humid_air.py`、`water.py` 和 `tests/test_properties.py`。
 
 批准后的第一个实现动作是步骤 3.1：新增 `evapcond/properties/backend.py`、`coolprop_backend.py`、`refrigerant.py`、`humid_air.py`、`water.py`，以及 `tests/test_properties.py`。求解器与界面不得直接导入 CoolProp。

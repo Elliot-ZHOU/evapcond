@@ -1,6 +1,6 @@
 # 改动计划
 
-状态：部分批准。补充三已批准 \(\Gamma_\mathrm{ref}\)、湿修正结构和 2268 点粗网格。Zukauskas 的 \(C_1\)、\(m\)、\(C_2\) 数值以及贴边外扩步长仍缺，见 docs/PROGRESS.md 第 d 节。这些数字到位之前不创建 `evapcond/`。
+状态：步骤 0 已完成。压降系数、\(C_2\) 和外扩规则以 docs/correlations.md 的补充四为准，不再使用下面曾经拟用的 \(C_1\mathrm{Re}^{-m}\) 形式。新 agent 从 docs/HANDOFF.md 进入实现。依赖版本、Friedel 展开式和均相加速压降仍按本文件的拟用式编码。
 
 本计划依据 docs/SPEC.md 与 docs/correlations.md 的「用户确认」一节。规格正文不改。
 
@@ -8,7 +8,7 @@
 
 - \(\Gamma_\mathrm{ref}=2.8755\,\mathrm{kg/(m^2\cdot s)}\)，\(\Delta p_\mathrm{wet}=\Delta p_\mathrm{dry}\bigl(1+0.5\,(\Gamma_m/d_o)/\Gamma_\mathrm{ref}\bigr)\)。结果 JSON 标记 `estimated_wet_correction`。
 - 默认搜索为 2268 点粗网格加不超过 200 点的局部细化，并在报告中印出补充三规定的非全局穷举说明。
-- 干管束压降的函数形式采用 Zukauskas (1972) 错列管束欧拉数。系数表未到，见 docs/correlations.md 补充三一节。
+- 干管束压降已由补充四改为 Zukauskas–Ulinskas 逆幂级数，系数与 \(C_2\) 见 docs/correlations.md，不再使用 \(C_1\mathrm{Re}^{-m}\)。
 
 下面两项目前按「拟采用、随本计划批准」处理。不批准就改：
 
