@@ -142,3 +142,81 @@ class CorrelationRecord:
     citation: str
     applicability: str
     parameters: tuple
+
+
+@dataclass(frozen=True)
+class SolverConfig:
+    """分段目标数、迭代上限和松弛因子。三项收敛判据不能在这里放宽。"""
+
+    n_cv_target: int = 40
+    max_iterations: int = 500
+    relaxation: float = 1.0
+
+    def __post_init__(self):
+        if type(self.n_cv_target) is not int or self.n_cv_target < 20:
+            raise OutOfRangeError(
+                "N_cv_target",
+                self.n_cv_target,
+                ">= 20",
+                "规格：控制容积不得少于 20",
+            )
+        if type(self.max_iterations) is not int or self.max_iterations < 1:
+            raise OutOfRangeError(
+                "max_iterations",
+                self.max_iterations,
+                ">= 1",
+                "求解器迭代上限",
+            )
+        if (type(self.relaxation) is not float and type(self.relaxation) is not int) or (
+            not math.isfinite(self.relaxation)
+            or self.relaxation <= 0.0
+            or self.relaxation > 1.0
+        ):
+            raise OutOfRangeError("relaxation", self.relaxation, "(0, 1]", "求解器松弛因子")
+
+
+@dataclass(frozen=True)
+class SegmentState:
+    """一个控制容积。行号自顶排起算，段号沿管长的几何方向，都从 1 起。"""
+
+    row: int
+    seg: int
+    region: str
+    T_ref: float
+    p: float
+    x: float | None
+    h_ref: float
+    T_w: float
+    m_w: float
+    T_a: float
+    w_a: float
+    i_a: float
+    dQ_ref: float
+    dQ_s: float
+    dQ_l: float
+    R_ref: float
+    R_wall: float
+    R_out: float
+
+
+@dataclass(frozen=True)
+class ResistanceSummary:
+    """热阻占比与按管外面积定义的 K。R 为按换热量加权的段热阻。"""
+
+    share_ref: float
+    share_wall: float
+    share_out: float
+    K: float
+    R_ref: float
+    R_wall: float
+    R_out: float
+
+
+@dataclass(frozen=True)
+class ConvergenceInfo:
+    """最后一轮的三项残差。空气焓残差单位是 J/kg。"""
+
+    iterations: int
+    heat_relative: float
+    film_temperature: float
+    air_enthalpy: float
