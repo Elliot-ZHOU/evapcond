@@ -312,3 +312,54 @@ class AuxResult:
     correlations: tuple
     diagnostics: tuple
     warnings: tuple
+
+
+@dataclass(frozen=True)
+class RatingInput:
+    """校核输入。压力 Pa，温度 K，流量 kg/s，风速 m/s。
+
+    风量与 v_face 二选一，喷淋水量与 gamma 二选一。
+    p_in 与 T_sat_in 至少给一个，同时给时必须对应同一饱和状态。
+    """
+
+    geometry: object
+    refrigerant: str
+    m_ref: float
+    T_in: float
+    air: object
+    aux: AuxInput
+    p_in: float | None = None
+    T_sat_in: float | None = None
+    v_face: float | None = None
+    air_volume_flow: float | None = None
+    gamma: float | None = None
+    m_spray: float | None = None
+    le_f: float | None = None
+
+
+@dataclass(frozen=True)
+class RatingResult:
+    """校核结果。温度 K，压力 Pa，焓 J/kg，h_m 为 kg/(m²·s)。"""
+
+    Q: float
+    T_ref_out: float
+    p_ref_out: float
+    h_ref_in: float
+    h_ref_out: float
+    region_out: str
+    x_out: float | None
+    subcooling: float | None
+    superheat: float | None
+    T_air_out: float
+    w_air_out: float
+    i_air_out: float
+    T_film_min: float
+    T_film_max: float
+    h_m: float
+    resistances: ResistanceSummary
+    auxiliary: AuxResult
+    segments: tuple
+    convergence: ConvergenceInfo
+    correlations: tuple
+    diagnostics: tuple
+    warnings: tuple

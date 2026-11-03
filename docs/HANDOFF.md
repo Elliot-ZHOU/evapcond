@@ -21,14 +21,15 @@
 - 步骤 3.4：已完成。制冷剂侧在 `evapcond/refside.py` 与 `evapcond/correlations/` 的冷凝、单相和两相压降。
 - 步骤 3.5：已完成。分段求解器在 `evapcond/solver.py`。
 - 步骤 3.6：已完成。辅机在 `evapcond/auxiliary.py`。干管束欧拉数在 `evapcond/correlations/bundle_pressure.py`，管路摩擦系数在 `evapcond/correlations/pipe_friction.py`。
-- 下一步是校核 `evapcond/rating.py`。不要重做 3.1 至 3.6，也不要改 docs/SPEC.md。接入辅机前，空气和水的取值截面还没有指定，见 docs/PROGRESS.md。
+- 校核模式：已完成。`evapcond/rating.py` 的 `run` 调用求解器和 `evaluate_auxiliary`。管束压降用进口湿空气，水泵用循环喷淋水温。
+- 下一步是设计模式 `evapcond/design.py`。不要重做 3.1 至 3.6 和校核，也不要改 docs/SPEC.md。若按 2268 点外推超过 15 min，先停下来报告单次求根时间。
 - 版本号只定义在 `evapcond/__init__.py` 的 `__version__`，当前 `"1.0.0"`。
 
 ## 新 agent 的第一件事
 
 欧拉数表已对照 `docs/sources/zukauskas_euler_table.png` 核对，三处争议系数与 docs/correlations.md 一致。不要重核、不要改表。步骤 3.6 已按该表编码。公共雷诺数端点归入较高雷诺数行；\(a=2\) 在约 \(10^4\) 到 \(2.36\times 10^4\) 时欧拉数为非正并抛错。这两条写在 docs/PROGRESS.md，没有另作确认。
 
-从校核继续，顺序见 `docs/PLAN.md`：`evapcond/rating.py` 与 `tests/test_rating.py`。先看进度里关于空气和水取值截面的未决项。
+从设计模式继续，顺序见 `docs/PLAN.md`：`evapcond/design.py` 与 `tests/test_design.py`。先看进度里的雷诺数端点、欧拉数非正区间，以及校核采用的进口空气和循环水温。不要把 2268 点网格再改小，除非实测外推超过 15 min 并已向用户报告。
 
 求解器和界面不得导入 CoolProp。计算内核不得导入 PySide6。界面不得写计算公式。
 
