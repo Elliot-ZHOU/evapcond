@@ -172,3 +172,46 @@ Darcy 摩擦系数，不用 Fanning：
 
 确认 \(k_w=63.9\,\mathrm{W/(m\cdot K)}\)（AISI 1010，300 K，Incropera 表 A.1）。\(R_\mathrm{wall}=\ln(d_o/d_i)/(2\pi k_w\,\mathrm{d}L)\)。
 
+## 用户确认（2026-11-03，`/Users/zhouhui/Desktop/补充三.docx`）
+
+### 干管束压降的形式
+
+采用 Zukauskas (1972) 错列光管束，欧拉数写成
+
+\[
+\mathrm{Eu}=\frac{\Delta p_\mathrm{dry}}{N_r\cdot\tfrac12\rho_a u_\mathrm{max}^2}=C_1\,\mathrm{Re}_\mathrm{max}^{-m}\,C_2
+\]
+
+\[
+\mathrm{Re}_\mathrm{max}=\rho_a u_\mathrm{max} d_o/\mu_a
+\]
+
+\(u_\mathrm{max}\) 为最窄截面风速。补充三写明：常规工况 \(10^3<\mathrm{Re}_\mathrm{max}<2\times 10^5\) 时，\(C_1\) 与 \(m\) 随 \(S_T/d_o\)、\(S_L/d_o\) 变化，并指向 Incropera 表 7.5 或 VDI Heat Atlas；\(N_r<10\) 时 \(C_2\) 在 0.95–1.0，具体查 Zukauskas 原表。文件里没有给出这三张表的数字。
+
+代码和文档必须注明：「干管束压降基于 Zukauskas 错列管束关联式，湿工况在此基础乘上由 \(\Gamma\) 驱动的湿修正因子。」
+
+核对结果：Incropera《Fundamentals of Heat and Mass Transfer》中与 Zukauskas 相关、常被编为表 7.5 的常数，属于努塞尔数 \(\mathrm{Nu}=C\,\mathrm{Re}^m\mathrm{Pr}^{n}(\mathrm{Pr}/\mathrm{Pr}_s)^{0.25}\)，不是欧拉数。同章压降写成 \(\Delta p=N_L\chi(\rho V_\mathrm{max}^2/2)\)，\(\chi\) 与摩擦系数来自图，不是该表。因此不把表 7.5 的传热 \(C\)、\(m\) 写入 \(\mathrm{Eu}\)。\(C_1\)、\(m\)、\(C_2\) 的数值仍待用户给出。
+
+### \(\Gamma_\mathrm{ref}\) 与湿修正
+
+按补充三批准：
+
+\[
+\Gamma_\mathrm{ref}=\frac{0.195+5.556}{2}=2.8755\,\mathrm{kg/(m^2\cdot s)}
+\]
+
+\[
+\Delta p_\mathrm{wet}=\Delta p_\mathrm{dry}\left(1+0.5\cdot\frac{\Gamma_m/d_o}{\Gamma_\mathrm{ref}}\right)
+\]
+
+结果 JSON 增加字段，标记该压降为 `estimated_wet_correction`。系数 0.5 的来源仍是补充二，不是实验回归。
+
+### 设计网格
+
+批准两阶段搜索，不再使用 14580 点的全网格作为默认：
+
+- 粗网格 2268 点：\(d_o\) 3 个，管距比 4 组，\(\Gamma\) 3 点，\(v_f\) 3 点，\(L\in\{2,4,6\}\,\mathrm{m}\)，\(N_r\in\{4,8,12,16,20,24,28\}\)。
+- 在粗网格最优的若干点附近，以步长 1 或更小再搜索。细化候选不超过 200 个。
+- 最终报告必须包含：「设计结果基于粗网格搜索（2268点）与局部细化寻优，非全局穷举。若需绝对全局最优，请手动开启 exhaustive 模式。」
+- 若粗网格最优解落在边界（管排为 4 或 28，或管长为 2 m 或 6 m），先向外扩展边界再细化。扩展的步数和是否允许超出规格原范围（管排 4–30、管长 2–6 m），补充三没有写明。
+

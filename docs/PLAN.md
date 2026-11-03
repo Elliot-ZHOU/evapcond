@@ -1,13 +1,14 @@
 # 改动计划
 
-状态：等待批准。批准前不创建 `evapcond/`，不写计算代码。
+状态：部分批准。补充三已批准 \(\Gamma_\mathrm{ref}\)、湿修正结构和 2268 点粗网格。Zukauskas 的 \(C_1\)、\(m\)、\(C_2\) 数值以及贴边外扩步长仍缺，见 docs/PROGRESS.md 第 d 节。这些数字到位之前不创建 `evapcond/`。
 
 本计划依据 docs/SPEC.md 与 docs/correlations.md 的「用户确认」一节。规格正文不改。
 
-## 批准时必须同时回答的两项
+## 补充三已经批准的部分
 
-1. 干管束压降用哪一条关联式。补充二只给出 \(\Delta p_\mathrm{wet}=\Delta p_\mathrm{dry}(1+0.5\,\Gamma_m/\Gamma_\mathrm{ref})\)，没有给出 \(\Delta p_\mathrm{dry}\) 的函数、系数和文献。在指定之前，风机全压不能编码。
-2. \(\Gamma_\mathrm{ref}\) 的定义。Mizushina 的有效范围是 \(0.195<\Gamma_m/d_o<5.556\,\mathrm{kg/(m^2\cdot s)}\)。请确认比值是 \((\Gamma_m/d_o)/\Gamma_\mathrm{ref}\)，且 \(\Gamma_\mathrm{ref}=(0.195+5.556)/2=2.8755\,\mathrm{kg/(m^2\cdot s)}\)；或给出别的定义。按补充二原文的 \(\Gamma_m/\Gamma_\mathrm{ref}\) 直接相除，单位不一致。
+- \(\Gamma_\mathrm{ref}=2.8755\,\mathrm{kg/(m^2\cdot s)}\)，\(\Delta p_\mathrm{wet}=\Delta p_\mathrm{dry}\bigl(1+0.5\,(\Gamma_m/d_o)/\Gamma_\mathrm{ref}\bigr)\)。结果 JSON 标记 `estimated_wet_correction`。
+- 默认搜索为 2268 点粗网格加不超过 200 点的局部细化，并在报告中印出补充三规定的非全局穷举说明。
+- 干管束压降的函数形式采用 Zukauskas (1972) 错列管束欧拉数。系数表未到，见 docs/correlations.md 补充三一节。
 
 下面两项目前按「拟采用、随本计划批准」处理。不批准就改：
 
@@ -108,7 +109,7 @@ H=\left(\frac{\rho_l}{\rho_g}\right)^{0.91}\left(\frac{\mu_g}{\mu_l}\right)^{0.1
 
 一次分段求解含约 40 个控制容积，并要多次调用 CoolProp。在这个调用量下，单次求根很难压到 0.062 s 以下，而 14580 个组合要在 15 min 内完成，平均每个组合只能用 0.062 s。因此默认网格按现有估计超过 15 min。若单次求根为 0.2 s，总时间约 49 min；若为 0.5 s，约 2.0 h。
 
-缩减方案（请批准后才作为设计模式的默认搜索）：
+缩减方案（补充三已批准为默认搜索；贴边外扩的步长仍缺）：
 
 - 保留全部 \(d_o\)、管距比、3 个 \(\Gamma\)、3 个 \(v_f\)
 - \(L\) 改为 2、4、6 m
