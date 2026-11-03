@@ -6,7 +6,8 @@
 
 - 步骤 0（关联式与默认参数确认表）：已完成。补充二、补充三、补充四的决定都在 docs/correlations.md。交接入口是 docs/HANDOFF.md。
 - 步骤 1（改动计划）：正文在 docs/PLAN.md。网格、\(\Gamma_\mathrm{ref}\)、湿修正、Zukauskas–Ulinskas 系数表、\(C_2\) 拟合和外扩规则已由用户定稿。依赖版本、Friedel 展开式、均相加速压降仍是计划中的拟用式，已按该文件写入依赖清单。
-- 步骤 3.1（物性）：已完成。测试见下方。下一步是步骤 3.2 几何。
+- 步骤 3.1（物性）：已完成。
+- 步骤 3.2（几何）：已完成。测试见下方。下一步是步骤 3.3 空气侧。
 
 ## b. 已完成步骤
 
@@ -21,7 +22,9 @@
   - \(a=2.0\)，\(7\sim 10^2\) 的 \(t=-0.582\times 10^{3}\)
   - \(a=2.5\)，\(10^2\sim 5\times 10^3\) 的 \(u=0.862\times 10^{8}\)
 - 步骤 3.1：新增 `evapcond/__init__.py`（`__version__ = "1.0.0"`）、`evapcond/errors.py`、`evapcond/properties/backend.py`、`coolprop_backend.py`、`refrigerant.py`、`humid_air.py`、`water.py`、`tests/test_properties.py`，以及 `requirements.txt`、`pyproject.toml`、`.gitignore`。CoolProp 只在 `coolprop_backend.py` 导入。制冷剂与水用 HEOS；R404A、R507A 用伪纯质名 `HEOS::R404A`、`HEOS::R507A`。湿空气用 HAPropsSI。开发环境是仓库内 `.venv` 的 Python 3.12.16，因为本机 3.13/3.14 装不上 CoolProp 6.6.0。`.venv` 不入库。
-- 测试：在 `.venv` 中运行 `python -m pytest`，13 项通过，约 2.8 s。解释器 Python 3.12.16，pytest 8.3.4，CoolProp 6.6.0。
+- 测试（3.1 完成时）：在 `.venv` 中运行 `python -m pytest`，13 项通过，约 2.8 s。解释器 Python 3.12.16，pytest 8.3.4，CoolProp 6.6.0。
+- 步骤 3.2：新增 `evapcond/models.py`（`TubeGeometry`、`PlateGeometry`）、`evapcond/geometry/tube.py`、`plate.py`、`candidates.py` 和 `tests/test_geometry.py`。\(d_i=d_o-2\delta\)，迎风面积 \(N_t S_T L\)，管外面积 \(N_t N_r \pi d_o L\)。默认几何候选是补充三粗网格的几何部分，252 个，\(N_t=1\)。贴边外扩按补充四：管排 28 新增 29 和 30，管长 2 m 新增 1 m，管长 6 m 新增 7 m 和 8 m。板式与低翅片可以构造，求解入口抛出规定的 `UnconfirmedCorrelationError`。
+- 测试（3.2 完成时）：`python -m pytest` 20 项通过，约 2.9 s。此前 13 项物性测试仍通过。
 
 ## c. 用户已确认的决定
 
@@ -52,6 +55,6 @@
 
 ## e. 下一步的具体动作
 
-实现步骤 3.2：`evapcond/geometry/tube.py`、`plate.py`、`candidates.py` 和 `tests/test_geometry.py`。
+实现步骤 3.3：`evapcond/correlations/film_air.py`、`evapcond/airside.py` 和 `tests/test_airside.py`。
 
-几何关系：\(d_i=d_o-2\delta\)，迎风面积 \(N_t S_T L\)，管外表面积。板式与低翅片字段可以构造，求解入口拒绝并抛出 `UnconfirmedCorrelationError`。不改 3.1 的物性接口，不改已确认的关联式。
+管外 \(h_c\) 与水膜 \(h_w\) 都用 \(h=2102.9(\Gamma_m/d_o)^{1/3}\)，范围 \(0.195<\Gamma_m/d_o<5.556\)。\(\Gamma_m=\dot m_w d_o/(2A_f)\)。\(h_m=h_c/(c_{p,a}\mathrm{Le}_f)\)，\(\mathrm{Le}_f\) 用 Bosnjaković 式，\(w_s\to w_a\) 时取约 0.908。显热、蒸发、潜热分开，空气温度由 \((i_a,w_a,p)\) 反算。不改几何和物性接口。

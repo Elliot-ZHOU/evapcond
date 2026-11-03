@@ -15,15 +15,16 @@
 
 - 步骤 0：已完成。关联式、默认常数、湿修正、\(\Gamma_\mathrm{ref}\)、粗网格和外扩规则都已由用户在补充二、补充三、补充四中决定，并写入 `docs/correlations.md`。
 - 步骤 1：改动计划已写在 `docs/PLAN.md`。网格、\(\Gamma_\mathrm{ref}\) 和湿修正结构已批准。依赖版本、Friedel 展开式、均相加速压降仍是计划里的拟用式，补充四没有改它们。
-- 步骤 3.1：已完成。物性在 `evapcond/properties/`，测试 `tests/test_properties.py` 共 13 项通过。详情在 docs/PROGRESS.md。
-- 下一步是步骤 3.2 几何，不要重做 3.1，也不要改 docs/SPEC.md。
+- 步骤 3.1：已完成。物性在 `evapcond/properties/`，详见 docs/PROGRESS.md。
+- 步骤 3.2：已完成。几何在 `evapcond/geometry/`，`TubeGeometry` 与 `PlateGeometry` 在 `evapcond/models.py`。
+- 下一步是步骤 3.3 空气侧。不要重做 3.1 和 3.2，也不要改 docs/SPEC.md。
 - 版本号只定义在 `evapcond/__init__.py` 的 `__version__`，当前 `"1.0.0"`。
 
 ## 新 agent 的第一件事
 
 欧拉数表已对照 `docs/sources/zukauskas_euler_table.png` 核对，三处争议系数与 docs/correlations.md 一致。不要重核、不要改表。
 
-从步骤 3.2 继续，顺序见 `docs/PLAN.md`：`evapcond/geometry/tube.py`、`plate.py`、`candidates.py`，以及 `tests/test_geometry.py`。
+从步骤 3.3 继续，顺序见 `docs/PLAN.md`：`evapcond/correlations/film_air.py`、`evapcond/airside.py`，以及 `tests/test_airside.py`。
 
 求解器和界面不得导入 CoolProp。计算内核不得导入 PySide6。界面不得写计算公式。
 
