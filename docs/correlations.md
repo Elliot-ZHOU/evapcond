@@ -46,3 +46,129 @@
 9. **\(k_w=63.9\,\mathrm{W/(m\cdot K)}\)**：表 A.1 的 AISI 1010、300 K 与规格一致。请确认采用该值。
 
 收到上述确认前，不进入步骤 1，也不编写求解代码。
+
+## 用户确认（2026-11-03，`/Users/zhouhui/Desktop/补充二.docx`）
+
+以下只记录该文件写明的决定。作者姓名在文件中写作 Mizushima，对应文献是 Mizushina, Ito, Miyashita (1967)。US-8 原文公式仍未取得；用户声明公开渠道无法获得完整系数，并指定下面的替代。
+
+### 1. 管外空气对流 \(h_c\)
+
+采用
+
+\[
+h = 2102.9\,(\Gamma_m/d_o)^{1/3}\quad [\mathrm{W/(m^2\cdot K)}]
+\]
+
+有效范围：管径 12.7 / 19.05 / 40 mm，\(0.195 < \Gamma_m/d_o < 5.556\,\mathrm{kg/(m^2\cdot s)}\)。越界抛出 `OutOfRangeError`。
+
+规格喷淋密度 \(\Gamma\)（单侧、单位管长）与 Mizushina 的 \(\Gamma_m\)（半管周长上的单位管长流量）用
+
+\[
+\Gamma_m = \dot m_w\, d_o / (2 A_f)
+\]
+
+\(A_f\) 为迎风面积。由规格关系 \(\dot m_w = \Gamma\cdot 2\cdot N_t\cdot L\)、\(A_f = N_t\cdot S_T\cdot L\)，上式等价于 \(\Gamma_m = \Gamma\cdot d_o/S_T\)。
+
+结果中必须包含这句话：「管外空气对流项采用 Mizushina et al. (1967) 关联式，经 \(\Gamma\) 定义转换后使用；该式对纯空气对流与空气-水膜耦合对流的区分未在原文中显式声明，其量纲与数值范围与蒸发式冷凝器管外工况一致。」
+
+### 2. Lewis 数
+
+默认使用 Bosnjaković 因子，不把 \(\mathrm{Le}_f\) 再取 \(2/3\) 次方：
+
+\[
+\mathrm{Le}_f = 0.865^{2/3}\frac{(w_s+0.622)/(w_a+0.622)-1}{\ln[(w_s+0.622)/(w_a+0.622)]}
+\]
+
+\[
+h_m = h_c / (c_{p,a}\,\mathrm{Le}_f)
+\]
+
+\(w_s\to w_a\) 时取极限 \(\mathrm{Le}_f\to 0.865^{2/3}\approx 0.908\)。允许用户覆盖为 \(\mathrm{Le}_f=1\)，默认不是 1。
+
+### 3. 水膜对流 \(h_w\)
+
+与 \(h_c\) 使用同一条 Mizushina 式，范围相同。水膜热阻 \(R_\mathrm{film}=1/(h_w A_o)\) 单独串联，不与 \(h_c\) 合并成一个综合系数。Parker & Treybal 不采用。
+
+### 4. 管内冷凝
+
+按补充二给出的公式编码，文献标签仍写作 Shah (2009)。该式与 Shah (1979) 的公开形式相同；2009 年论文中的粘度比修正和分区判据不在这条公式里。
+
+\[
+h_{TP}=h_{Lo}\left[(1-x)^{0.8}+\frac{3.8\,x^{0.76}(1-x)^{0.04}}{p_r^{0.38}}\right]
+\]
+
+\[
+h_{Lo}=0.023\left(\frac{GD}{\mu_l}\right)^{0.8}\mathrm{Pr}_l^{0.4}\frac{k_l}{D},\quad p_r=p/p_\mathrm{crit}
+\]
+
+补充二写明的范围为液相雷诺数 100–63000、液相普朗特数 1–13，平均偏差 15–17%。这些数字与 2009 年论文摘要（平均偏差 14.4%，全液雷诺数 68–85000，液相普朗特数 1–18）不一致。实现时按补充二写出的公式和它所声明的范围做越界检查。
+
+\(\mathrm{Re}_{GT}\le 35000\) 时仍然计算，不剔除候选，不抛异常。结果 JSON 的 warnings 增加：「Shah (2009) 关联式在 Re_GT ≤ 35000 时原文建议保守使用，当前设计工况低于该阈值」。
+
+### 5. 管内单相
+
+Gnielinski (1976) 的公开转写，仅用于过热段和过冷段：
+
+\[
+\mathrm{Nu}=\frac{(f/8)(\mathrm{Re}-1000)\mathrm{Pr}}{1+12.7\sqrt{f/8}\,(\mathrm{Pr}^{2/3}-1)},\quad f=(0.790\ln\mathrm{Re}-1.64)^{-2}
+\]
+
+- \(\mathrm{Re}<2300\)：抛出 `OutOfRangeError`（补充二中的类名 LaminarFlowUnsupportedError 不新增；规格的异常类型只有既有六类）。
+- \(2300\le\mathrm{Re}<3000\)：仍用该式，并写警告。
+- \(\mathrm{Re}>5\times 10^6\)，或普朗特数不在 \(0.5\)–\(2000\)：抛出 `OutOfRangeError`。
+
+### 6. 两相摩擦压降与加速压降
+
+采用 Friedel (1979) 的两相乘子结构，单相摩擦系数用 Blasius，不声称完全按 Friedel 原文的摩擦系数：
+
+\[
+\Phi_{lo}^2 = E + \frac{3.24\,F\,H}{\mathrm{Fr}^{0.045}\,\mathrm{We}^{0.035}}
+\]
+
+湍流 \(f=0.079\,\mathrm{Re}^{-0.25}\)，层流 \(f=16/\mathrm{Re}\)。
+
+\(E\)、\(F\)、\(H\)、\(\mathrm{Fr}\)、\(\mathrm{We}\) 的展开式在补充二里没有逐项写出。步骤 1 计划中给出公开转写，须随计划一并批准后才编码。
+
+加速压降计入当地压力：\(p_{i+1}=p_i-(\Delta p_\mathrm{fric}+\Delta p_\mathrm{acc})\)，再用新压力更新饱和温度。空泡份额或均相密度的具体算法，补充二没有指定，仍见 `docs/PLAN.md` 的待批准项。
+
+### 7. 湿工况管束压降
+
+补充二给出的工程修正是
+
+\[
+\Delta p_\mathrm{wet}=\Delta p_\mathrm{dry}\,(1+0.5\cdot\Gamma_m/\Gamma_\mathrm{ref})
+\]
+
+并要求输出标注「湿工况压降为工程估计，不确定度约 ±30%」。系数 0.5 的来源是该补充文件，不是已核实的实验关联式。
+
+这一项还不能编码。\(\Delta p_\mathrm{dry}\) 用哪一条管束阻力关联式没有指定。\(\Gamma_\mathrm{ref}\) 写成「Mizushina 有效范围的中值」，而该范围的量是 \(\Gamma_m/d_o\)（kg/(m²·s)），与 \(\Gamma_m\)（kg/(m·s)）不能直接相除。
+
+### 8. 板式与低翅片
+
+`surface_type` 不是 `tube_plain` 时抛出 `UnconfirmedCorrelationError`，消息为「板式/低翅片管外侧水膜-空气关联式尚未确认，本期仅支持光管」。几何输入字段保留。不使用 Longo (2015) 代替板外水膜。补充二中的字段名 `geometry_type` / `plain_tube` 不采用，输入字段仍是规格里的 `surface_type`。
+
+### 9. 喷淋水管路
+
+Darcy 摩擦系数，不用 Fanning：
+
+\[
+\frac{1}{\sqrt{\lambda}}=-2\log_{10}\left(\frac{\varepsilon}{3.7D}+\frac{2.51}{\mathrm{Re}\sqrt{\lambda}}\right),\quad h_f=\lambda\frac{L}{D}\frac{V^2}{2g}
+\]
+
+隐式方程迭代求解，初值用 Swamee–Jain 显式近似，收敛判据 \(|\Delta\lambda|<10^{-8}\)。
+
+### 10. 默认常数
+
+均为用户可覆盖的默认值，文档不写成强制性标准条款。
+
+| 常数 | 默认值 | 文档写法 |
+|---|---|---|
+| \(\eta_\mathrm{fan}\) | 0.65 | 常用工程取值，无强制性标准来源 |
+| \(\eta_\mathrm{pump}\) | 0.70 | 同上 |
+| \(N_\mathrm{cyc}\) | 3.0 | 常见运行取值；排污量 = 蒸发量 / \((N_\mathrm{cyc}-1)\) |
+| 风吹损失率 | 喷淋水量的 0.01% | 分母是喷淋水量；输出注明「此为工程取值，非标准强制条款」 |
+
+### 11. 管壁导热系数
+
+确认 \(k_w=63.9\,\mathrm{W/(m\cdot K)}\)（AISI 1010，300 K，Incropera 表 A.1）。\(R_\mathrm{wall}=\ln(d_o/d_i)/(2\pi k_w\,\mathrm{d}L)\)。
+
