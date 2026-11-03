@@ -363,3 +363,69 @@ class RatingResult:
     correlations: tuple
     diagnostics: tuple
     warnings: tuple
+
+
+@dataclass(frozen=True)
+class DesignInput:
+    """设计输入。热量 W，温度 K，风速 m/s。几何候选用 SI 单位。"""
+
+    Q: float
+    refrigerant: str
+    T_k: float
+    air: object
+    v_face_max: float
+    aux: AuxInput
+    surface_type: str = "tube_plain"
+    superheat: float = 0.0
+    subcooling: float = 0.0
+    d_o: tuple = (0.01905, 0.025, 0.032)
+    wall_thickness: float = 0.002
+    k_w: float = 63.9
+    transverse_pitch_ratio: tuple = (2.0, 2.5)
+    longitudinal_pitch_ratio: tuple = (1.5, 2.0)
+    gamma: tuple | None = None
+    gamma_min: float | None = None
+    gamma_max: float | None = None
+    lengths: tuple = (2.0, 4.0, 6.0)
+    face_velocity_factor: tuple = (0.6, 0.8, 1.0)
+    rows: tuple = (4, 8, 12, 16, 20, 24, 28)
+    le_f: float | None = None
+    exhaustive: bool = False
+
+    def __post_init__(self):
+        if not isinstance(self.aux, AuxInput):
+            raise InputError("需要 AuxInput")
+        _positive("Q", self.Q)
+        _positive("v_face_max", self.v_face_max)
+        _positive("wall_thickness", self.wall_thickness)
+        _positive("k_w", self.k_w)
+        _at_least_zero("superheat", self.superheat)
+        _at_least_zero("subcooling", self.subcooling)
+        if self.surface_type not in ("tube_plain", "tube_lowfin", "plate"):
+            raise InputError(
+                f"未知表面类型 {self.surface_type}。有效值：tube_plain、tube_lowfin、plate"
+            )
+        if not self.d_o or not self.lengths or not self.rows:
+            raise InputError("几何候选列表为空")
+        if not self.face_velocity_factor:
+            raise InputError("迎面风速候选列表为空")
+        if self.exhaustive not in (True, False):
+            raise InputError("exhaustive 必须是布尔值")
+
+
+@dataclass(frozen=True)
+class DesignResult:
+    """设计结果。传热与辅机的明细在 rating 里。"""
+
+    geometry: object
+    v_face: float
+    gamma: float
+    area: float
+    face_area: float
+    rating: RatingResult
+    warnings: tuple
+    diagnostics: tuple
+    coarse_count: int
+    refined_count: int
+    m_ref: float
+    T_in: float

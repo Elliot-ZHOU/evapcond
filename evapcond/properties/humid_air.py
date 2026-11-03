@@ -59,6 +59,61 @@ def humid_air_state(
     return _forward(T, humidity, p, backend)
 
 
+def saturation_humidity_ratio(T, p, backend=None):
+    """饱和含湿量，kg/kg。与 humid_air_state(p, T_db=T, rh=1).w 相同。
+
+    只调用一次 HAPropsSI。相对湿度为 1 时不可能落在干空气上，不再做那次试算。
+    """
+    backend = resolve_backend(backend)
+    _check_pressure(p)
+    _check_dry_bulb(T)
+    return _w_sat(T, p, backend)
+
+
+def saturated_enthalpy(T, p, backend=None):
+    """饱和空气焓，J/kg。与 humid_air_state(p, T_db=T, rh=1).h 相同。"""
+    backend = resolve_backend(backend)
+    _check_pressure(p)
+    _check_dry_bulb(T)
+    humidity = _w_sat(T, p, backend)
+    return _ha(backend, "H", "Tdb", T, "P", p, "W", humidity)
+
+
+@dataclass(frozen=True)
+class MoistAirCarry:
+    """迭代中间的空气状态。只保留方程用到的量。"""
+
+    p: float
+    T_db: float
+    w: float
+    h: float
+    cp: float
+
+
+def state_for_march(p, w, h, backend=None):
+    """由压力、含湿量和焓得到下一步要用的干球温度、焓和比热。
+
+    这三个数值与 humid_air_state(p, w=w, h=h) 相同。
+    湿球温度、相对湿度、比容、粘度和导热系数不在这里计算。
+    """
+    backend = resolve_backend(backend)
+    _check_pressure(p)
+    if not math.isfinite(w) or w < 0.0:
+        raise OutOfRangeError("w", w, _SOURCE_W, _SOURCE_W)
+    if not math.isfinite(h):
+        raise OutOfRangeError("h", h, "有限实数", "湿空气输入")
+    temperature = _temperature_at_humidity("h", w, h, p, backend)
+    _check_dry_bulb(temperature)
+    w_sat = _w_sat(temperature, p, backend)
+    if w > w_sat * (1.0 + 1e-9) + 1e-12:
+        raise OutOfRangeError("w", w, f"[0, {w_sat}] kg/kg", _SOURCE_W)
+    if w > w_sat:
+        w = w_sat
+    enthalpy = _ha(backend, "H", "Tdb", temperature, "P", p, "W", w)
+    heat_capacity = _ha(backend, "C", "Tdb", temperature, "P", p, "W", w)
+    return MoistAirCarry(p=p, T_db=temperature, w=w, h=enthalpy, cp=heat_capacity)
+
+
 def _collect(T_db, T_wb, rh, w, h, rho):
     provided = {
         "T_db": T_db,

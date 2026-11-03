@@ -12,7 +12,11 @@
 - 步骤 3.4（制冷剂侧）：已完成。
 - 步骤 3.5（分段迭代求解器）：已完成。
 - 步骤 3.6（辅机）：已完成。
-- 校核模式：已完成。下一步是设计模式。
+- 校核模式：已完成。
+- 求解耗时优化与设计搜索：已完成代码和单元测试。完整 2268 点搜索尚未对指定工况运行。
+- IO/CLI：已完成。
+- 图形界面：已完成离屏冒烟。
+- 打包脚本与文档：已在本机写好。Windows 上的 `build_windows.bat` 尚未执行，zip 尚未生成。
 
 ## b. 已完成步骤
 
@@ -43,6 +47,10 @@
 - 校核：新增 `evapcond/rating.py`、`tests/test_rating.py`，并在 `models.py` 追加 `RatingInput`、`RatingResult`。`run` 调用已有的 `solve` 与 `evaluate_auxiliary`，不改 3.3–3.6 的公式。风量与 \(v_f\) 二选一，喷淋水量与 \(\Gamma\) 二选一，进口压力与进口饱和温度至少给一个。两者同时给出时，由压力反算的饱和温度与输入相差不得超过 \(10^{-3}\,\mathrm{K}\)。进口温度与饱和温度相差不超过 \(10^{-4}\,\mathrm{K}\) 时，进口焓按饱和蒸气计算。出口干度、过冷度或过热度由出口压力和焓判断。\(h_m\) 是各控制容积的算术平均。R404A 的诊断包含伪纯质那一句。
 - 管束压降和附件阻力使用进口湿空气的 \(\rho\)、\(\mu\)。水泵使用求解得到的循环喷淋水温，压力取进口空气压力。这是接入时采用的截面，补充材料没有指定；若要改成出口或沿程平均，须另说。
 - 测试（校核完成时）：在 `.venv` 中运行 `python -m pytest`，58 项通过，247.72 s。解释器 Python 3.12.16，pytest 8.3.4。此前 51 项仍通过。新增 7 项在 `tests/test_rating.py`。
+- 2026-11-04 优化：`evapcond/properties/humid_air.py`、`backend.py`、`evapcond/airside.py`、`solver.py`、`design.py`、`models.py` 及对应测试。同一代表工况一次求解从 25.31 s 降到 1.37 s，17 轮，换热量 5487.45 W，与优化前打印的 5487.5 W 一致。`.venv` 中 `python -m pytest`：64 项通过，26.23 s。一个 7 排候选组（管径 19.05 mm，\(S_T/d_o=2.5\)，管长 2 m，迎面风速 8 m/s，\(\Gamma=0.05\)）耗时 57.2 s。按此估计，有效管径的约 108 组在 8 路并行下粗网格大约 15 min，细化另加几分钟。没有启动未指定工况的完整 2268 点搜索。
+- 2026-11-04 IO/CLI：新增 `evapcond/io_json.py`、`evapcond/cli.py`、`evapcond/__main__.py`、`examples/design_example.json`、`examples/rating_example.json`、`tests/test_cli.py`。输入用工程单位，内部仍是 SI。结果写出 `result.json`、带 BOM 的 `distribution.csv` 和 `summary.txt`。退出码 0/2/3/4/5。示例是已经跑通的单候选，不是 2268 点网格；只有输入恰好为默认粗网格时才细化并并行。无参数启动会提示图形界面尚未提供。`python -m pytest`：72 项通过，36.92 s。其中 `tests/test_cli.py` 8 项。
+- 2026-11-04 界面：新增 `evapcond/gui/`（主窗口、设计页、校核页、结果页、后台线程）和 `tests/test_gui_smoke.py`。界面只调用 `design.run`、`rating.run` 和 `io_json`。离屏冒烟为启动、加载 `examples/rating_example.json`、校核运行、结果表非空。`QT_QPA_PLATFORM=offscreen` 下 `python -m pytest`：73 项通过，38.41 s。未捕获异常写入 `~/Library/Logs/EvapCond/app.log`。
+- 2026-11-04 打包与文档：新增 `packaging/build_windows.bat`、`packaging/evapcond.spec`、`packaging/使用说明.txt`（UTF-8 BOM，仅规格 US-10 的 8 项）、`docs/technical.md`、`docs/validation_report.md`、`README.md`、`validation/cases/case_r717.json`、`case_r134a_a.json`、`case_r134a_b.json`。文献 `K` 为空，`tests/test_validation.py` 跳过并注明「待用户提供文献数据」。未在 Windows 上运行打包脚本。
 
 ## c. 用户已确认的决定
 
@@ -63,6 +71,8 @@
 - 2026-11-03 补充三：默认设计搜索改为 2268 点粗网格，再在最优点附近细化，细化点不超过 200。报告必须印出补充三规定的那句「非全局穷举……exhaustive 模式」。最优解落在管排 4 或 28、或管长 2 m 或 6 m 时，先外扩再细化。外扩步数未给出。
 - 2026-11-03 补充四：干管束压降改为 Zukauskas 与 Ulinskas 的逆幂级数，系数表见 docs/correlations.md。\(N_r<10\) 时 \(C_2=1-0.45\exp(-N_r/3)\)，否则为 1。非等边布置本期 \(k_1=1\)，并输出规定说明。贴边外扩：管排 \(\Delta N_r=4\) 且不超过 30；管长 \(\Delta L=2\,\mathrm{m}\)，下限 0.5 m，未另给上限时 10 m。
 - 改动计划是否批准：步骤 0 的技术决定已全部定稿。docs/PLAN.md 里的依赖版本、Friedel 展开式和均相加速压降，补充四没有改写，新 agent 按该文件实现。
+- 2026-11-04：`backup/` 是回滚副本。除非用户当次明确要求，否则不查看、不修改、不移动、不删除、不覆盖。规则写在 `.cursor/rules/main.mdc`。
+- 2026-11-04：按已讨论的优化实施。数值路径保持不变的是饱和含湿量单次物性调用、饱和焓直接计算、迭代中间空气状态只保留方程用到的量、每次求解自带精确物性缓存、求解前剔除必然越界的候选、求根端点不重复计算、候选分组并行。求根沿用上一轮水膜温度，并用相邻排数的流量作初值；收敛判据不放宽。流量只求到确定整数回路数、以及面积下界跳过候选，这两项没有另获确认，未实施。运行时间允许超过 15 min；预估超过约 1 h 时先询问。
 
 ## d. 未解决的问题
 
@@ -72,7 +82,8 @@
 4. Mizushina 管径按补充二只接受 12.7、19.05、40 mm。规格默认候选中的 25 mm 和 32 mm 会在该关联式处越界。这不是新的选择；若要改成区间而不是这三个离散管径，须另说。
 5. CoolProp 的单相 `PropsSI(T,P)` 在压力距饱和压力约 1e-4% 以内会失败。制冷剂侧在 \(|T-T_\mathrm{sat}|\le 10^{-4}\,\mathrm{K}\) 时改用该压力下的饱和相物性。这不是新的关联式。
 6. 迎面风速偏低时，空气含湿量会超过该焓对应的饱和含湿量，求解器按规格抛出 `OutOfRangeError`，不把含湿量截断到饱和。
+7. 2026-11-04 实测：代表工况一次求根 9 次求解、225.61 s（单次求解约 25 s，16–17 轮）。工况为 R134a、冷凝温度 40 °C、进口饱和蒸气、出口目标为当地压力下的饱和液；干球 32 °C、湿球 26 °C；管径 19.05 mm，\(S_T/d_o=S_L/d_o=2\)，\(N_r=4\)，\(L=2\,\mathrm{m}\)，\(N_t=1\)，迎面风速 8 m/s，\(\Gamma=0.05\,\mathrm{kg/(m\cdot s)}\)。按 2268 点外推约 142 h。其中 2 次是区间端点重复调用，即使按 7 次求解估算仍约 176 s、外推约 111 h。同一风速和喷淋密度下，\(N_r=16\)、\(L=4\,\mathrm{m}\) 在 1.53 s 因含湿量超过饱和而 `OutOfRangeError`。默认候选里 25 mm 和 32 mm 会在 Mizushina 管径处直接剔除，剩下约 756 点；若这些点都完成求根，仍是数十小时。没有把网格改小。当时设计模式尚未编码；随后已实现，见上面已完成步骤。
 
 ## e. 下一步的具体动作
 
-实现设计模式：`evapcond/design.py` 与 `tests/test_design.py`。默认搜索用补充三的 2268 点粗网格，再局部细化，细化点不超过 200。调用已有的校核或求解器，不改 3.3–3.6 和校核里的公式。先测一个代表工况的单次求根时间；若按 2268 外推超过 15 min，停止并报告，不自行把网格改小。
+在 Windows 10/11 x64 上运行 `packaging\build_windows.bat`，得到 `dist\EvapCond_v1.0.0_win64.zip`，再按使用说明解压并打开界面。本机不能生成该 zip。文献传热系数仍待用户提供。完整 2268 点搜索仍不启动。流量只求到整数回路数、以及面积下界跳过候选，仍要另一次确认才做。

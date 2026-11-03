@@ -40,3 +40,45 @@ def resolve_backend(backend: Optional[PropertyBackend]) -> PropertyBackend:
     from evapcond.properties.coolprop_backend import CoolPropBackend
 
     return CoolPropBackend()
+
+
+class CachingBackend:
+    """一次求解内部的精确缓存。相同参数返回同一次查询的原值。
+
+    缓存放在这次调用传入的对象上，不作为模块级变量。
+    """
+
+    def __init__(self, inner: PropertyBackend):
+        self._inner = inner
+        self._props = {}
+        self._humid = {}
+
+    def props_si(self, output, name1, value1, name2, value2, fluid):
+        key = (output, name1, value1, name2, value2, fluid)
+        cached = self._props.get(key)
+        if cached is not None:
+            return cached
+        value = self._inner.props_si(output, name1, value1, name2, value2, fluid)
+        self._props[key] = value
+        return value
+
+    def ha_props_si(self, output, name1, value1, name2, value2, name3, value3):
+        key = (output, name1, value1, name2, value2, name3, value3)
+        cached = self._humid.get(key)
+        if cached is not None:
+            return cached
+        value = self._inner.ha_props_si(
+            output, name1, value1, name2, value2, name3, value3
+        )
+        self._humid[key] = value
+        return value
+
+    def version(self):
+        return self._inner.version()
+
+
+def new_caching_backend():
+    """新建一份只在本次求解中使用的 CoolProp 缓存后端。"""
+    from evapcond.properties.coolprop_backend import CoolPropBackend
+
+    return CachingBackend(CoolPropBackend())

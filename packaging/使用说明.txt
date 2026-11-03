@@ -1,0 +1,8 @@
+﻿1. 运行环境：Windows 10/11 64 位，无需安装 Python 或其他软件。
+2. 启动步骤：右键 zip → “全部解压缩” → 打开 EvapCond 文件夹 → 双击 EvapCond.exe。
+3. 醒目警告：不得在压缩包内直接双击运行，否则会报错或闪退。
+4. 首次运行时如出现“Windows 已保护你的电脑”，点击“更多信息 → 仍要运行”。
+5. 创建桌面快捷方式：右键 EvapCond.exe → 发送到 → 桌面快捷方式；不得把 EvapCond.exe 单独移出文件夹。
+6. 示例：在界面中点“加载输入”，选择 examples/ 下的示例文件。
+7. 命令行用法：EvapCond.exe design --input examples\design_example.json --out 结果目录；把 design 换成 rating 即按校核模式运行。
+8. 日志位置：%LOCALAPPDATA%\EvapCond\logs\app.log；出错时请提供该文件。

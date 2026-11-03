@@ -37,7 +37,8 @@ from evapcond.models import (
     SolverConfig,
     TubeGeometry,
 )
-from evapcond.properties.humid_air import humid_air_state
+from evapcond.properties.backend import new_caching_backend
+from evapcond.properties.humid_air import humid_air_state, saturated_enthalpy
 from evapcond.properties.water import latent_heat, specific_heat, vapor_enthalpy
 from evapcond.refside import evaluate_refrigerant_segment
 
@@ -48,6 +49,15 @@ ENERGY_RELATIVE_TOLERANCE = 1e-6
 WATER_MASS_TOLERANCE = 1e-9
 _T_AIR_MIN = 5.0 + 273.15
 _T_AIR_MAX = 50.0 + 273.15
+
+
+@dataclass(frozen=True)
+class FilmStart:
+    """上一次收敛的水膜温度、流量和喷淋温度。只作为下一次迭代的起点。"""
+
+    temperature: tuple
+    flow: tuple
+    spray: float
 
 
 @dataclass(frozen=True)
@@ -72,6 +82,7 @@ class SolverResult:
     n_L: int
     energy_residual: float
     water_mass_residual: float
+    film: FilmStart
 
 
 def segments_per_row(n_r, n_cv_target):
@@ -101,12 +112,16 @@ def solve(
     progress_cb=None,
     cancel_event=None,
     le_f=None,
+    backend=None,
+    initial_film=None,
 ):
     """求解整台管束。m_dot 是全部回路的制冷剂流量，kg/s。"""
     if config is None:
         config = SolverConfig()
     if not isinstance(config, SolverConfig):
         raise InputError("config 必须是 SolverConfig")
+    if backend is None:
+        backend = new_caching_backend()
     if not isinstance(tube, TubeGeometry):
         raise InputError("需要 TubeGeometry")
     require_supported_surface(tube.surface_type)
@@ -123,9 +138,9 @@ def solve(
     m_dry_segment = dry_air_mass_flow(air_in, v_face, tube.S_T * dL)
     spray_segment = gamma * 2.0 * dL
     path = _flow_path(tube.N_r, n_l)
-    t_wall = _filled(tube.N_r, n_l, air_in.T_wb)
-    water_flow = _filled(tube.N_r, n_l, spray_segment)
-    spray = air_in.T_wb
+    t_wall, water_flow, spray = _starting_film(
+        tube.N_r, n_l, air_in.T_wb, spray_segment, initial_film
+    )
     previous_enthalpy = None
     previous_heat = None
     cells = None
@@ -149,15 +164,18 @@ def solve(
             t_wall,
             water_flow,
             le_f,
+            backend,
         )
         proposed = _implicit_water_update(
-            tube, cells, spray, spray_segment, area, dL, le_f
+            tube, cells, spray, spray_segment, area, dL, le_f, backend
         )
         heat = _circuit_heat(cells)
         heat_relative = _relative_heat(heat, previous_heat)
         film_change = _max_temperature_change(t_wall, proposed.temperature, spray, proposed.spray)
         enthalpy_change = _max_enthalpy_change(cells, previous_enthalpy)
-        imbalance = _stored_energy_imbalance(cells, t_wall, water_flow, spray)
+        imbalance = _stored_energy_imbalance(
+            cells, t_wall, water_flow, spray, backend
+        )
         if progress_cb is not None:
             progress_cb(
                 iteration,
@@ -195,6 +213,7 @@ def solve(
                     air_enthalpy=enthalpy_change,
                 ),
                 imbalance,
+                backend,
             )
         t_wall = _relax_field(t_wall, proposed.temperature, config.relaxation)
         water_flow = _relax_field(water_flow, proposed.flow, config.relaxation)
@@ -268,6 +287,7 @@ def _evaluate_field(
     t_wall,
     water_flow,
     le_f,
+    backend,
 ):
     n_r = tube.N_r
     n_l = len(t_wall[0])
@@ -278,7 +298,15 @@ def _evaluate_field(
         state = air_in
         for row in range(n_r - 1, -1, -1):
             cell, cell_warnings, cell_correlations = _air_cell(
-                tube, state, t_wall[row][seg], water_flow[row][seg], area, dL, m_dry, le_f
+                tube,
+                state,
+                t_wall[row][seg],
+                water_flow[row][seg],
+                area,
+                dL,
+                m_dry,
+                le_f,
+                backend,
             )
             air[row][seg] = cell
             state = cell.outlet
@@ -299,6 +327,7 @@ def _evaluate_field(
             enthalpy,
             t_wall[row][seg],
             air[row][seg].R_film,
+            backend=backend,
         )
         refrigerant_cells[row][seg] = segment
         pressure = segment.state_out.p
@@ -313,11 +342,11 @@ def _evaluate_field(
     )
 
 
-def _air_cell(tube, inlet, t_film, m_water, area, dL, m_dry, le_f):
+def _air_cell(tube, inlet, t_film, m_water, area, dL, m_dry, le_f, backend):
     dQ_s, dm_ev, dQ_l, h_w, i_g, correlations = _air_rates(
-        tube, inlet, t_film, m_water, area, dL, le_f
+        tube, inlet, t_film, m_water, area, dL, le_f, backend
     )
-    outlet = advance_moist_air(inlet, m_dry, dQ_s, dm_ev, i_g)
+    outlet = advance_moist_air(inlet, m_dry, dQ_s, dm_ev, i_g, backend)
     cell = _AirCell(
         inlet=inlet,
         outlet=outlet,
@@ -331,25 +360,25 @@ def _air_cell(tube, inlet, t_film, m_water, area, dL, m_dry, le_f):
     return cell, (), cell.correlations
 
 
-def _air_rates(tube, inlet, t_film, m_water, area, dL, le_f):
+def _air_rates(tube, inlet, t_film, m_water, area, dL, le_f, backend):
     if m_water <= 0.0 or not math.isfinite(m_water):
         raise OutOfRangeError("m_w", m_water, "> 0 kg/s", "喷淋水流量")
     gamma = m_water / (2.0 * dL)
     gamma_m = gamma_m_from_gamma(gamma, tube.d_o, tube.S_T)
     h_c, hc_record = air_convection_coefficient(gamma_m, tube.d_o)
     h_w, hw_record = film_convection_coefficient(gamma_m, tube.d_o)
-    w_s = saturation_humidity(t_film, inlet.p)
+    w_s = saturation_humidity(t_film, inlet.p, backend)
     lewis, lewis_record = bosnjakovic_lewis_factor(w_s, inlet.w, le_f=le_f)
     h_m = h_c / (inlet.cp * lewis)
-    h_fg = latent_heat(t_film)
-    i_g = vapor_enthalpy(t_film)
+    h_fg = latent_heat(t_film, backend)
+    i_g = vapor_enthalpy(t_film, backend)
     dQ_s, dm_ev, dQ_l = air_side_rates(
         h_c, h_m, area, t_film, inlet.T_db, w_s, inlet.w, h_fg
     )
     return dQ_s, dm_ev, dQ_l, h_w, i_g, (hc_record, hw_record, lewis_record)
 
 
-def _implicit_water_update(tube, field, spray, spray_segment, area, dL, le_f):
+def _implicit_water_update(tube, field, spray, spray_segment, area, dL, le_f, backend):
     """水膜温度取能量平衡的出口温度，并在该温度上计算热流。"""
     n_r = len(field.air)
     n_l = len(field.air[0])
@@ -373,6 +402,7 @@ def _implicit_water_update(tube, field, spray, spray_segment, area, dL, le_f):
                 le_f,
                 refrigerant.state_in.T,
                 resistance,
+                backend,
             )
             flow_out = flow_in - evaporated
             if flow_out <= 0.0:
@@ -398,16 +428,16 @@ def _implicit_water_update(tube, field, spray, spray_segment, area, dL, le_f):
 
 
 def _solve_film_temperature(
-    tube, inlet_air, temperature_in, flow_in, area, dL, le_f, t_ref, resistance
+    tube, inlet_air, temperature_in, flow_in, area, dL, le_f, t_ref, resistance, backend
 ):
     """求解 T_w = T_in + (dQ_ref - dQ_s - dQ_l) / (m c_p)。返回水膜温度和蒸发量。"""
     guess = temperature_in
     evaporated = 0.0
     for _ in range(8):
         net, evaporated, slope = _net_and_slope(
-            tube, inlet_air, guess, flow_in, area, dL, le_f, t_ref, resistance
+            tube, inlet_air, guess, flow_in, area, dL, le_f, t_ref, resistance, backend
         )
-        cp = specific_heat(guess)
+        cp = specific_heat(guess, backend=backend)
         mismatch = guess - temperature_in - net / (flow_in * cp)
         derivative = 1.0 - slope / (flow_in * cp)
         if derivative == 0.0 or not math.isfinite(derivative):
@@ -422,35 +452,44 @@ def _solve_film_temperature(
         if abs(step) < 1e-8:
             return guess, evaporated
     net, evaporated, _ = _net_and_slope(
-        tube, inlet_air, guess, flow_in, area, dL, le_f, t_ref, resistance
+        tube, inlet_air, guess, flow_in, area, dL, le_f, t_ref, resistance, backend
     )
     return guess, evaporated
 
 
 def _net_and_slope(
-    tube, inlet_air, temperature, flow_in, area, dL, le_f, t_ref, resistance
+    tube, inlet_air, temperature, flow_in, area, dL, le_f, t_ref, resistance, backend
 ):
     net, evaporated = _film_net(
-        tube, inlet_air, temperature, flow_in, area, dL, le_f, t_ref, resistance
+        tube, inlet_air, temperature, flow_in, area, dL, le_f, t_ref, resistance, backend
     )
     step = 1e-3
     net_up, _ = _film_net(
-        tube, inlet_air, temperature + step, flow_in, area, dL, le_f, t_ref, resistance
+        tube,
+        inlet_air,
+        temperature + step,
+        flow_in,
+        area,
+        dL,
+        le_f,
+        t_ref,
+        resistance,
+        backend,
     )
     return net, evaporated, (net_up - net) / step
 
 
 def _film_net(
-    tube, inlet_air, temperature, flow_in, area, dL, le_f, t_ref, resistance
+    tube, inlet_air, temperature, flow_in, area, dL, le_f, t_ref, resistance, backend
 ):
     dQ_s, dm_ev, dQ_l = _air_rates(
-        tube, inlet_air, temperature, flow_in, area, dL, le_f
+        tube, inlet_air, temperature, flow_in, area, dL, le_f, backend
     )[:3]
     dQ_ref = (t_ref - temperature) / resistance
     return dQ_ref - dQ_s - dQ_l, dm_ev
 
 
-def _stored_energy_imbalance(field, t_wall, water_flow, spray):
+def _stored_energy_imbalance(field, t_wall, water_flow, spray, backend):
     """已保存的热流和水膜温度对能量方程的偏差，W。"""
     total = 0.0
     n_r = len(t_wall)
@@ -462,7 +501,7 @@ def _stored_energy_imbalance(field, t_wall, water_flow, spray):
         for row in range(n_r):
             air = field.air[row][seg]
             refrigerant = field.refrigerant[row][seg]
-            cp = specific_heat(t_wall[row][seg])
+            cp = specific_heat(t_wall[row][seg], backend=backend)
             net = refrigerant.dQ_ref - air.dQ_s - air.dQ_l
             temperature_out = temperature_in + net / (water_flow[row][seg] * cp)
             total += abs(water_flow[row][seg] * cp * (t_wall[row][seg] - temperature_out))
@@ -474,7 +513,7 @@ def _stored_energy_imbalance(field, t_wall, water_flow, spray):
         mixed = sum(
             value * flow for value, flow in zip(outlet_temperature, outlet_flow)
         ) / mass
-        total += abs(mass * specific_heat(spray) * (mixed - spray))
+        total += abs(mass * specific_heat(spray, backend=backend) * (mixed - spray))
     return total
 
 
@@ -492,6 +531,7 @@ def _assemble(
     n_l,
     convergence,
     imbalance,
+    backend,
 ):
     n_r = tube.N_r
     n_t = tube.N_t
@@ -499,7 +539,7 @@ def _assemble(
     for row, seg in _flow_path(n_r, n_l):
         air = field.air[row][seg]
         refrigerant = field.refrigerant[row][seg]
-        t_star = temperature_at_saturated_enthalpy(air.inlet.h, air.inlet.p)
+        t_star = temperature_at_saturated_enthalpy(air.inlet.h, air.inlet.p, backend)
         t_wall_outer = refrigerant.state_in.T - refrigerant.dQ_ref * (
             refrigerant.R_ref + refrigerant.R_wall
         )
@@ -532,7 +572,7 @@ def _assemble(
     last = field.refrigerant[_flow_path(n_r, n_l)[-1][0]][_flow_path(n_r, n_l)[-1][1]]
     h_mix = sum(field.air[0][seg].outlet.h for seg in range(n_l)) / n_l
     w_mix = sum(field.air[0][seg].outlet.w for seg in range(n_l)) / n_l
-    air_out = humid_air_state(air_in.p, w=w_mix, h=h_mix)
+    air_out = humid_air_state(air_in.p, w=w_mix, h=h_mix, backend=backend)
     circuit_heat = _circuit_heat(field)
     m_evap_circuit = sum(field.air[row][seg].dm_ev for row in range(n_r) for seg in range(n_l))
     m_dry = m_dry_segment * n_l * n_t
@@ -559,13 +599,18 @@ def _assemble(
         n_L=n_l,
         energy_residual=imbalance * n_t,
         water_mass_residual=water_mass_residual,
+        film=FilmStart(
+            temperature=_freeze_field(t_wall),
+            flow=_freeze_field(water_flow),
+            spray=spray,
+        ),
     )
 
 
-def temperature_at_saturated_enthalpy(enthalpy, pressure):
+def temperature_at_saturated_enthalpy(enthalpy, pressure, backend=None):
     """饱和空气焓等于 enthalpy 时的温度，K。"""
-    h_low = humid_air_state(pressure, T_db=_T_AIR_MIN, rh=1.0).h
-    h_high = humid_air_state(pressure, T_db=_T_AIR_MAX, rh=1.0).h
+    h_low = saturated_enthalpy(_T_AIR_MIN, pressure, backend)
+    h_high = saturated_enthalpy(_T_AIR_MAX, pressure, backend)
     if enthalpy < h_low or enthalpy > h_high:
         raise OutOfRangeError(
             "i_a",
@@ -575,7 +620,7 @@ def temperature_at_saturated_enthalpy(enthalpy, pressure):
         )
 
     def gap(temperature):
-        return humid_air_state(pressure, T_db=temperature, rh=1.0).h - enthalpy
+        return saturated_enthalpy(temperature, pressure, backend) - enthalpy
 
     if abs(gap(_T_AIR_MIN)) <= 1e-6:
         return _T_AIR_MIN
@@ -655,6 +700,31 @@ def _max_enthalpy_change(field, previous):
         for seg, cell in enumerate(cells):
             gap = max(gap, abs(cell.inlet.h - previous[row][seg]))
     return gap
+
+
+def _starting_film(n_r, n_l, t_wb, spray_segment, initial_film):
+    if initial_film is None:
+        return (
+            _filled(n_r, n_l, t_wb),
+            _filled(n_r, n_l, spray_segment),
+            t_wb,
+        )
+    if (
+        len(initial_film.temperature) != n_r
+        or len(initial_film.flow) != n_r
+        or any(len(row) != n_l for row in initial_film.temperature)
+        or any(len(row) != n_l for row in initial_film.flow)
+    ):
+        raise InputError("水膜初值的排数或分段数与当前管束不一致")
+    return (
+        [list(row) for row in initial_film.temperature],
+        [list(row) for row in initial_film.flow],
+        float(initial_film.spray),
+    )
+
+
+def _freeze_field(field):
+    return tuple(tuple(row) for row in field)
 
 
 def _relax_field(current, proposed, factor):

@@ -1,0 +1,8 @@
+{
+  "name": "R134a-a",
+  "refrigerant": "R134a",
+  "T_k_C": 35,
+  "T_wb_C": 20,
+  "literature_K": null,
+  "note": "待用户提供文献数据"
+}

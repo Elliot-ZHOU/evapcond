@@ -14,6 +14,7 @@ from evapcond.airside import (
     film_resistance,
     gamma_m_from_gamma,
     gamma_m_from_spray,
+    saturation_humidity,
     spray_mass_flow,
 )
 from evapcond.correlations.film_air import (
@@ -26,7 +27,7 @@ from evapcond.correlations.film_air import (
 )
 from evapcond.errors import InputError, OutOfRangeError, UnconfirmedCorrelationError
 from evapcond.models import TubeGeometry
-from evapcond.properties.humid_air import humid_air_state
+from evapcond.properties.humid_air import humid_air_state, saturated_enthalpy
 from evapcond.properties.water import latent_heat, vapor_enthalpy
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -210,3 +211,20 @@ def test_non_plain_surface_and_non_positive_velocity_are_rejected():
     positive = dry_air_mass_flow(inlet, 1.0e-6, 1.0)
     assert positive > 0.0
     assert math.isfinite(positive)
+
+
+def test_fast_humidity_and_march_match_full_state():
+    pressure = 101325.0
+    temperature = 303.15
+    saturated = humid_air_state(pressure, T_db=temperature, rh=1.0)
+    assert saturation_humidity(temperature, pressure) == saturated.w
+    assert saturated_enthalpy(temperature, pressure) == saturated.h
+    inlet = humid_air_state(pressure, T_db=temperature, rh=0.5)
+    marched = advance_moist_air(inlet, 0.4, 800.0, 0.001, vapor_enthalpy(308.15))
+    full = humid_air_state(pressure, w=inlet.w + 0.001 / 0.4, h=inlet.h + (800.0 + 0.001 * vapor_enthalpy(308.15)) / 0.4)
+    assert marched.w == full.w
+    assert marched.h == full.h
+    assert marched.T_db == full.T_db
+    assert marched.cp == full.cp
+    with pytest.raises(OutOfRangeError):
+        saturation_humidity(273.15, pressure)

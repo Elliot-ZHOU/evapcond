@@ -11,7 +11,7 @@ from evapcond.correlations.film_air import (
 from evapcond.errors import InputError, OutOfRangeError
 from evapcond.geometry.tube import face_area, require_supported_surface
 from evapcond.models import TubeGeometry
-from evapcond.properties.humid_air import humid_air_state
+from evapcond.properties.humid_air import saturation_humidity_ratio, state_for_march
 from evapcond.properties.water import latent_heat, vapor_enthalpy
 
 
@@ -71,9 +71,9 @@ def film_resistance(h_w, area):
     return 1.0 / (h_w * area)
 
 
-def saturation_humidity(T_film, pressure):
+def saturation_humidity(T_film, pressure, backend=None):
     """水膜温度下的饱和含湿量，kg/kg。"""
-    return humid_air_state(pressure, T_db=T_film, rh=1.0).w
+    return saturation_humidity_ratio(T_film, pressure, backend)
 
 
 def air_side_rates(h_c, h_m, area, T_film, T_air, w_s, w_air, h_fg):
@@ -84,12 +84,12 @@ def air_side_rates(h_c, h_m, area, T_film, T_air, w_s, w_air, h_fg):
     return dQ_s, dm_ev, dQ_l
 
 
-def advance_moist_air(inlet, m_dry, dQ_s, dm_ev, i_g):
+def advance_moist_air(inlet, m_dry, dQ_s, dm_ev, i_g, backend=None):
     """用 ṁ_a di = dQ_s + dm_ev·i_g 更新空气，再由 (i, w, p) 求温度。"""
     _positive_flow("m_dry", m_dry)
     w_out = inlet.w + dm_ev / m_dry
     enthalpy_out = inlet.h + (dQ_s + dm_ev * i_g) / m_dry
-    return humid_air_state(inlet.p, w=w_out, h=enthalpy_out)
+    return state_for_march(inlet.p, w_out, enthalpy_out, backend)
 
 
 def evaluate_air_side(tube, inlet, T_film, area, m_dry, gamma=None, m_spray=None, le_f=None):
