@@ -5,7 +5,7 @@
 ## a. 当前步骤及状态
 
 - 步骤 0（关联式与默认参数确认表）：已完成。确认结论来自用户提供的 `/Users/zhouhui/Desktop/补充二.docx`，已写入 docs/correlations.md 的「用户确认」一节。
-- 步骤 1（改动计划）：未开始。湿工况压降仍有两项未闭合，写在第 d 节。
+- 步骤 1（改动计划）：进行中。正文已写入 docs/PLAN.md，等待批准。湿工况压降的两项未闭合问题仍在第 d 节，未批准前不编码。
 - 实现步骤 3.1 至文档：未开始。
 
 ## b. 已完成步骤
@@ -44,6 +44,6 @@
 
 ## e. 下一步的具体动作
 
-下一步是把改动计划写入 docs/PLAN.md（含依赖版本、默认网格耗时和缩减方案），然后停止等待批准。批准前不创建 `evapcond/`，不编写 `film_air.py`、`solver.py` 或其他计算函数。
+等待用户批准 docs/PLAN.md，并写明第 d 节第 1、2 项（干管束压降关联式，以及 \(\Gamma_\mathrm{ref}\) 的定义）。批准前不创建 `evapcond/`，不编写 `film_air.py`、`solver.py` 或其他计算函数。
 
 批准后的第一个实现动作是步骤 3.1：新增 `evapcond/properties/backend.py`、`coolprop_backend.py`、`refrigerant.py`、`humid_air.py`、`water.py`，以及 `tests/test_properties.py`。求解器与界面不得直接导入 CoolProp。
