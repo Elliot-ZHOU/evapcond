@@ -124,6 +124,25 @@ def _positive_int(name, value):
         raise InputError(f"{name} 必须是正整数")
 
 
+def _real_number(name, value):
+    if type(value) is not float and type(value) is not int:
+        raise InputError(f"{name} 必须是实数")
+    if not math.isfinite(value):
+        raise OutOfRangeError(name, value, "有限实数", "辅助输入")
+
+
+def _at_least_zero(name, value):
+    _real_number(name, value)
+    if value < 0.0:
+        raise OutOfRangeError(name, value, ">= 0", "辅助输入")
+
+
+def _unit_interval(name, value):
+    _real_number(name, value)
+    if value <= 0.0 or value > 1.0:
+        raise OutOfRangeError(name, value, "(0, 1]", "轴功率 = 有效功率 / η")
+
+
 @dataclass(frozen=True)
 class CorrelationMeta:
     """关联式的文献与适用范围。reported_deviation 没有数字时写明未给出。"""
@@ -220,3 +239,76 @@ class ConvergenceInfo:
     heat_relative: float
     film_temperature: float
     air_enthalpy: float
+
+
+@dataclass(frozen=True)
+class AuxInput:
+    """风机、水泵和补水的输入。压力 Pa，长度 m，阻力系数无量纲。
+
+    eta_fan、eta_pump、N_cyc、drift_rate 是可覆盖的工程默认值。
+    drift_rate 是风吹损失与喷淋水量之比，默认 0.01% = 0.0001。
+    """
+
+    zeta_de: float
+    zeta_lv: float
+    zeta_st: float
+    p_noz: float
+    H_lift: float
+    pipe_length: float
+    pipe_diameter: float
+    zeta_pipe: float
+    pipe_roughness: float
+    eta_fan: float = 0.65
+    eta_pump: float = 0.70
+    N_cyc: float = 3.0
+    drift_rate: float = 0.0001
+
+    def __post_init__(self):
+        for name in (
+            "zeta_de",
+            "zeta_lv",
+            "zeta_st",
+            "zeta_pipe",
+            "pipe_roughness",
+            "H_lift",
+            "p_noz",
+            "drift_rate",
+        ):
+            _at_least_zero(name, getattr(self, name))
+        _positive("pipe_length", self.pipe_length)
+        _positive("pipe_diameter", self.pipe_diameter)
+        for name in ("eta_fan", "eta_pump"):
+            _unit_interval(name, getattr(self, name))
+        _real_number("N_cyc", self.N_cyc)
+        if self.N_cyc <= 1.0:
+            raise OutOfRangeError(
+                "N_cyc",
+                self.N_cyc,
+                "> 1",
+                "排污量 = 蒸发量 / (N_cyc - 1)",
+            )
+
+
+@dataclass(frozen=True)
+class AuxResult:
+    """辅机结果。体积流量 m³/s，质量流量 kg/s，压力 Pa，扬程 m，功率 W。"""
+
+    air_volume_flow: float
+    fan_pressure: float
+    fan_power: float
+    spray_mass_flow: float
+    pump_volume_flow: float
+    pump_head: float
+    pump_power: float
+    m_evap: float
+    m_blowdown: float
+    m_drift: float
+    m_makeup: float
+    delta_p_dry: float
+    delta_p_wet: float
+    delta_p_accessories: float
+    darcy_lambda: float
+    estimated_wet_correction: bool
+    correlations: tuple
+    diagnostics: tuple
+    warnings: tuple

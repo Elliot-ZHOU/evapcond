@@ -274,3 +274,16 @@ C_2=\begin{cases}1-0.45\exp(-N_r/3), & N_r<10\\ 1, & N_r\ge 10\end{cases}
 - 管排贴边时控制台原样输出：`Warning: 最优解贴近初始搜索边界 (Nr=4或28)，已向物理允许方向外扩 1 个单位进行精细化验证。`
 - 补充四没有给管长贴边的第二句警告。管长贴边时用同样结构另打印一句，并把边界写成实际的 \(L\)。
 
+## 步骤 3.6 编码对照（2026-11-04）
+
+编码前重读 `docs/sources/zukauskas_euler_table.png`。九行系数与上面的补充四表格一致，包括三处争议值：\(a=1.25\) 高雷诺数的 \(u=-0.599\times 10^{13}\)，\(a=2.0\) 低雷诺数的 \(t=-0.582\times 10^{3}\)，\(a=2.5\) 低雷诺数的 \(u=0.862\times 10^{8}\)。确认结论没有改。
+
+函数与结果字段：
+
+- `evapcond/correlations/bundle_pressure.py`：`euler_number`、`row_correction`、`dry_bundle_pressure_drop`、`wet_pressure_drop`
+- `evapcond/correlations/pipe_friction.py`：`darcy_friction_factor`（Darcy \(\lambda\)，Swamee–Jain 仅作初值）
+- `evapcond/auxiliary.py`：`evaluate_auxiliary`
+- `AuxResult.estimated_wet_correction` 在本实现中为真。诊断句使用补充三、补充四里的原文，风吹损失另注明「此为工程取值，非标准强制条款」。
+
+补充四没有写区间端点同时属于相邻两行时归哪一行。代码把公共端点归入较高雷诺数行，各 \(a\) 的最低下界和最高上界仍包含在内。\(a=2.0\) 的 \(10^4\sim 2\times 10^6\) 一行在约 \(10^4\) 到 \(2.36\times 10^4\) 给出非正欧拉数，这些点抛 `OutOfRangeError`。
+

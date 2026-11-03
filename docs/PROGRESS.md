@@ -1,6 +1,6 @@
 # 进度
 
-记录时间：2026-11-03。本文件只记载已经发生的事实。未写入本文件的决定视为不存在。
+记录时间：2026-11-04。本文件只记载已经发生的事实。未写入本文件的决定视为不存在。
 
 ## a. 当前步骤及状态
 
@@ -10,7 +10,8 @@
 - 步骤 3.2（几何）：已完成。
 - 步骤 3.3（空气侧）：已完成。测试见下方。
 - 步骤 3.4（制冷剂侧）：已完成。
-- 步骤 3.5（分段迭代求解器）：已完成。下一步是步骤 3.6 辅机。
+- 步骤 3.5（分段迭代求解器）：已完成。
+- 步骤 3.6（辅机）：已完成。下一步是校核模式。
 
 ## b. 已完成步骤
 
@@ -35,6 +36,9 @@
 - 步骤 3.5：新增 `evapcond/solver.py`、`tests/test_solver.py`，并在 `models.py` 增加 `SolverConfig`、`SegmentState`、`ResistanceSummary`、`ConvergenceInfo`。\(n_L=\mathrm{ceil}(N_{cv,target}/N_r)\)，默认 40。空气自下而上，喷淋水自上而下，制冷剂按排蛇形。水膜温度取该控制容积能量平衡的出口温度，并在同一温度上计算热流。顶排喷淋水温等于各列底排出口的质量加权温度。干管束压降未写入。默认 \(N_{cv,target}=40\) 在 3 个 R134a 工况上，\(n_L\) 加倍后换热量变化小于 0.5%，因此没有提高默认分段数。
 - 焓参考态：25 °C、相对湿度 0.5 时，\((h-h_\mathrm{dry})/w\) 比 HEOS 饱和蒸气焓低约 92 J/kg，与进度里约 97 J/kg 是同一量级。饱和含湿量处的局部差分大约差 770 J/kg。两个绝对值不能相加。求解器只把 \(i_g\) 加到已有的 HAProps 焓上。空气侧焓增、制冷剂焓降和水膜 \(c_p\Delta T\) 平衡都按这个增量闭合，测试里的能量残差小于 \(10^{-6}Q\)。
 - 测试（3.5 完成时）：在 `.venv` 中运行 `python -m pytest`，41 项通过，约 221 s。解释器 Python 3.12.16。耗时主要来自分段求解；此前 36 项仍通过。
+- 步骤 3.6：新增 `evapcond/correlations/bundle_pressure.py`、`evapcond/correlations/pipe_friction.py`、`evapcond/auxiliary.py`、`tests/test_auxiliary.py`，并在 `models.py` 追加 `AuxInput`、`AuxResult`。编码前重读 `docs/sources/zukauskas_euler_table.png`，九行系数与 docs/correlations.md 补充四一致，三处争议系数不改。干管束用该逆幂级数、\(k_1=1\) 和 \(C_2\)；湿修正用 \(\Gamma_\mathrm{ref}=2.8755\) 与系数 0.5；管路用 Colebrook–White 的 Darcy \(\lambda\)，Swamee–Jain 只作初值，\(|\Delta\lambda|<10^{-8}\)。风机全压里的附件阻力用迎面风速。喷淋水量 \(=\Gamma\cdot 2\cdot N_t\cdot L\)。补水量 = 蒸发 + 排污 + 风吹，风吹分母是喷淋水量。结果带 `estimated_wet_correction=True`，以及补充三、补充四要求的说明句。3.3–3.5 的传热文件未改。\(\rho\)、\(\mu\) 由调用方传入。
+- 公共雷诺数端点归入较高雷诺数行；各 \(a\) 的最低下界和最高上界包含在内。这是实现时的划分，补充四没有写端点归属。\(a=2.0\) 且约 \(10^4\le\mathrm{Re}_\mathrm{max}\le 2.36\times 10^4\) 时级数非正，抛 `OutOfRangeError`，不返回负压降。
+- 测试（3.6 完成时）：在 `.venv` 中运行 `python -m pytest`，51 项通过，222.47 s。解释器 Python 3.12.16，pytest 8.3.4。此前 41 项仍通过。新增 10 项在 `tests/test_auxiliary.py`。
 
 ## c. 用户已确认的决定
 
@@ -58,14 +62,13 @@
 
 ## d. 未解决的问题
 
-1. 干管束欧拉数函数仍未编码。压降系数已核对，留到步骤 3.6。
-2. 补充二的 Shah 公式已按写出的方程实现，不含 2009 年粘度修正。用户若要改回 2009 年分区公式，须另说。
-3. Mizushina 管径按补充二只接受 12.7、19.05、40 mm。规格默认候选中的 25 mm 和 32 mm 会在该关联式处越界。这不是新的选择；若要改成区间而不是这三个离散管径，须另说。
-4. CoolProp 的单相 `PropsSI(T,P)` 在压力距饱和压力约 1e-4% 以内会失败。制冷剂侧在 \(|T-T_\mathrm{sat}|\le 10^{-4}\,\mathrm{K}\) 时改用该压力下的饱和相物性。这不是新的关联式。
-5. 迎面风速偏低时，空气含湿量会超过该焓对应的饱和含湿量，求解器按规格抛出 `OutOfRangeError`，不把含湿量截断到饱和。
+1. 补充四没有写相邻雷诺数区间的公共端点归哪一行。实现时归入较高雷诺数行。\(a=2.0\)、\(10^4\le\mathrm{Re}_\mathrm{max}\lesssim 2.36\times 10^4\) 时欧拉数级数非正，这些点抛 `OutOfRangeError`。若要改端点归属或改系数，须另说。
+2. 辅机的 \(\rho_a\)、\(\mu_a\)、\(\rho_w\)、\(\mu_w\) 由调用方传入。校核和设计还没有规定用进口、出口还是沿程平均值。接入前须定这一项，不能在校核里自行挑选。
+3. 补充二的 Shah 公式已按写出的方程实现，不含 2009 年粘度修正。用户若要改回 2009 年分区公式，须另说。
+4. Mizushina 管径按补充二只接受 12.7、19.05、40 mm。规格默认候选中的 25 mm 和 32 mm 会在该关联式处越界。这不是新的选择；若要改成区间而不是这三个离散管径，须另说。
+5. CoolProp 的单相 `PropsSI(T,P)` 在压力距饱和压力约 1e-4% 以内会失败。制冷剂侧在 \(|T-T_\mathrm{sat}|\le 10^{-4}\,\mathrm{K}\) 时改用该压力下的饱和相物性。这不是新的关联式。
+6. 迎面风速偏低时，空气含湿量会超过该焓对应的饱和含湿量，求解器按规格抛出 `OutOfRangeError`，不把含湿量截断到饱和。
 
 ## e. 下一步的具体动作
 
-实现步骤 3.6：`evapcond/auxiliary.py` 与 `tests/test_auxiliary.py`。
-
-风机风量、全压和轴功率，水泵流量、扬程和轴功率，以及蒸发、排污、风吹和总补水。干管束压降用补充四的 Zukauskas–Ulinskas 逆幂级数和 \(C_2\)，湿修正用补充三的 \(\Gamma_\mathrm{ref}\)。管路用 Colebrook–White。不改 3.3–3.5 的传热公式。
+实现校核：`evapcond/rating.py` 与 `tests/test_rating.py`。调用已有的求解器和 `evaluate_auxiliary`，不改 3.3–3.6 的公式。开始写校核前，先确认管束压降和管路摩阻用哪一个空气状态、哪一个水温；该项尚未指定。

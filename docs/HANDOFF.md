@@ -1,6 +1,6 @@
 # 交给新 agent 的交接说明
 
-本文件是新对话的入口。先读本文件，再按需要打开下面列出的文档。不要修改 `docs/SPEC.md`。不要重新讨论已经确认的关联式。不要在这个旧对话里继续编码；用户会新开一个 agent。
+本文件是新对话的入口。先读本文件，再按需要打开下面列出的文档。不要修改 `docs/SPEC.md`。不要重新讨论已经确认的关联式。从 `docs/PROGRESS.md` 的下一步继续，不重做已完成步骤。
 
 ## 先读这些文件
 
@@ -18,14 +18,17 @@
 - 步骤 3.1：已完成。物性在 `evapcond/properties/`，详见 docs/PROGRESS.md。
 - 步骤 3.2：已完成。几何在 `evapcond/geometry/`，`TubeGeometry` 与 `PlateGeometry` 在 `evapcond/models.py`。
 - 步骤 3.3：已完成。空气侧在 `evapcond/airside.py` 与 `evapcond/correlations/film_air.py`。
-- 下一步是步骤 3.4 制冷剂侧。不要重做 3.1 至 3.3，也不要改 docs/SPEC.md。
+- 步骤 3.4：已完成。制冷剂侧在 `evapcond/refside.py` 与 `evapcond/correlations/` 的冷凝、单相和两相压降。
+- 步骤 3.5：已完成。分段求解器在 `evapcond/solver.py`。
+- 步骤 3.6：已完成。辅机在 `evapcond/auxiliary.py`。干管束欧拉数在 `evapcond/correlations/bundle_pressure.py`，管路摩擦系数在 `evapcond/correlations/pipe_friction.py`。
+- 下一步是校核 `evapcond/rating.py`。不要重做 3.1 至 3.6，也不要改 docs/SPEC.md。接入辅机前，空气和水的取值截面还没有指定，见 docs/PROGRESS.md。
 - 版本号只定义在 `evapcond/__init__.py` 的 `__version__`，当前 `"1.0.0"`。
 
 ## 新 agent 的第一件事
 
-欧拉数表已对照 `docs/sources/zukauskas_euler_table.png` 核对，三处争议系数与 docs/correlations.md 一致。不要重核、不要改表。
+欧拉数表已对照 `docs/sources/zukauskas_euler_table.png` 核对，三处争议系数与 docs/correlations.md 一致。不要重核、不要改表。步骤 3.6 已按该表编码。公共雷诺数端点归入较高雷诺数行；\(a=2\) 在约 \(10^4\) 到 \(2.36\times 10^4\) 时欧拉数为非正并抛错。这两条写在 docs/PROGRESS.md，没有另作确认。
 
-从步骤 3.4 继续，顺序见 `docs/PLAN.md`：`evapcond/correlations/condensation.py`、`single_phase.py`、`pressure_drop.py`、`evapcond/refside.py`，以及 `tests/test_refside.py`。
+从校核继续，顺序见 `docs/PLAN.md`：`evapcond/rating.py` 与 `tests/test_rating.py`。先看进度里关于空气和水取值截面的未决项。
 
 求解器和界面不得导入 CoolProp。计算内核不得导入 PySide6。界面不得写计算公式。
 
